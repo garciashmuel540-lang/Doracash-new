@@ -42,6 +42,9 @@
         "currency": { "type": "string", "enum": ["NIO", "USD"] },
         "accountId": { "type": "string" },
         "toAccountId": { "type": "string" },
+        "postings": { "type": "array", "maxItems": 2, "items": { "type": "object", "properties": {
+          "collection": { "enum": ["accounts", "goals", "cards"] }, "documentId": { "type": "string" }, "factor": { "type": "number" }
+        }, "required": ["collection", "documentId", "factor"] } },
         "categoryId": { "type": "string" },
         "note": { "type": "string" },
         "dateIso": { "type": "string" },

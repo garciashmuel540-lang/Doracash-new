@@ -46,6 +46,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,7 +132,23 @@ fun DashboardScreen(
     }
     val disp = CurrencyCode.safeValueOf(snapshot.profile.displayCurrency)
     val rate = snapshot.profile.exchangeRate
-    val currentYm = remember { FinanceUtils.currentYearMonth() }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val today by androidx.compose.runtime.produceState(FinanceUtils.todayIso(), lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                value = FinanceUtils.todayIso()
+                val midnight = Calendar.getInstance().apply {
+                    add(Calendar.DAY_OF_MONTH, 1)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                kotlinx.coroutines.delay((midnight.timeInMillis - System.currentTimeMillis()).coerceAtLeast(1L))
+            }
+        }
+    }
+    val currentYm = today.take(7)
 
     val netWorth = remember(snapshot.accounts, disp, rate) {
         snapshot.accounts.sumOf {
@@ -165,7 +184,7 @@ fun DashboardScreen(
             .sortedByDescending { it.second }
     }
 
-    val cashflowPoints = remember(snapshot.transactions, disp, rate) {
+    val cashflowPoints = remember(snapshot.transactions, disp, rate, currentYm) {
         val shortMonths = DateFormatSymbols(Locale.forLanguageTag("es-ES")).shortMonths
         val now = Calendar.getInstance()
         (5 downTo 0).map { offset ->
@@ -181,7 +200,7 @@ fun DashboardScreen(
         }
     }
 
-    val upcomingBills = remember(snapshot.scheduledBills) {
+    val upcomingBills = remember(snapshot.scheduledBills, today) {
         val now = Calendar.getInstance()
         FinanceUtils.occurrencesForMonth(
             snapshot.scheduledBills,
@@ -211,7 +230,7 @@ fun DashboardScreen(
         billingCards.count { it.autoDebitEnabled && !it.cardFrozen && it.autoDebitModeEnum != AutoDebitMode.MANUAL }
     }
 
-    val paydayText = remember(snapshot.transactions.size) { FinanceUtils.paydayBannerText() }
+    val paydayText = remember(today) { FinanceUtils.paydayBannerText() }
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -424,9 +443,9 @@ fun DashboardScreen(
                                         accounts = snapshot.accounts,
                                         modifier = Modifier.clickable { editingPending = tx }
                                     )
-                                    Row(
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Button(
@@ -891,15 +910,17 @@ internal fun MovementEditDialog(
     var note by remember(tx.id) { mutableStateOf(tx.note) }
     var date by remember(tx.id) { mutableStateOf(tx.dateIso) }
     var amountStr by remember(tx.id) { mutableStateOf(tx.amount.toString()) }
-    val canEditAmount = isPending || tx.typeEnum != TxType.TRANSFER
-    val parsedAmount = amountStr.toDoubleOrNull()
+    var singleAccountConfirmed by remember(tx.id) { mutableStateOf(false) }
+    val legacySingleAccount = !isPending && tx.canConfirmSingleAccount()
+    val canEditAmount = isPending || tx.postings.isNotEmpty() || singleAccountConfirmed
+    val parsedAmount = amountStr.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && FinanceUtils.round2(it) > 0 }
     val isAmountValid = !canEditAmount || (parsedAmount != null && parsedAmount > 0.0)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (isPending) "Editar pendiente" else "Editar movimiento") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it.take(160) },
@@ -908,6 +929,13 @@ internal fun MovementEditDialog(
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (legacySingleAccount) {
+                    androidx.compose.material3.FilterChip(
+                        selected = singleAccountConfirmed,
+                        onClick = { singleAccountConfirmed = !singleAccountConfirmed },
+                        label = { Text("El importe solo afectó mi cuenta") }
+                    )
+                }
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { amountStr = it },
@@ -920,7 +948,7 @@ internal fun MovementEditDialog(
                 )
                 if (!canEditAmount) {
                     Text(
-                        text = "Las transferencias completadas conservan el monto original para proteger ambos saldos.",
+                        text = "Podés corregir la fecha y la descripción. Este registro no guardó cómo se distribuyó el importe.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

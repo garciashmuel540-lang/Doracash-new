@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es-NI">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10263b">
+  <title>Doracash para Android</title>
+  <style>
+    @font-face {font-family:Fredoka;src:url("/fredoka.ttf")}
+    * {box-sizing:border-box}
+    body {margin:0;min-height:100svh;display:grid;place-items:center;background:#10263b;color:#f7fbff;font:1rem/1.55 system-ui,sans-serif;padding:1.5rem}
+    main {width:min(100%,32rem);text-align:center}
+    img {display:block;margin:0 auto 1rem;width:auto;height:clamp(8rem,25svh,15rem)}
+    h1 {font:600 clamp(3rem,13vw,5rem)/1 Fredoka,system-ui;margin:0}
+    .tagline {color:#91dfff;margin:.4rem 0 2rem;font-size:1.2rem}
+    p {margin:.85rem auto;max-width:27rem}
+    a {color:#99ddff;text-underline-offset:.25rem}
+    #download {display:inline-block;border-radius:1rem;background:#ffcf51;color:#172536;font-weight:700;padding:.85rem 1.4rem;text-decoration:none}
+    #download[hidden] {display:none}
+    #status {color:#ccdeec}
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/doraemon.png" alt="Doraemon saludando" width="399" height="512">
+    <h1>Doracash</h1>
+    <p class="tagline">Tu bolsillo al instante</p>
+    <a id="download" hidden>Descargar para Android</a>
+    <p id="status" role="status">Buscando la versión de Android…</p>
+    <p>En el otro teléfono, iniciá sesión con la misma cuenta de Google para ver tus presupuestos, ahorros y movimientos.</p>
+    <a href="https://github.com/garciashmuel540-lang/Doracash-new/releases">Ver las versiones en GitHub</a>
+  </main>
+  <script>
+    async function loadRelease() {
+      const status = document.getElementById('status');
+      try {
+        const response = await fetch('https://api.github.com/repos/garciashmuel540-lang/Doracash-new/releases/latest');
+        if (response.status === 404) { status.textContent = 'Todavía no hay una actualización firmada disponible.'; return; }
+        if (!response.ok) throw new Error();
+        const release = await response.json();
+        const tag = release.tag_name;
+        const base = 'https://github.com/garciashmuel540-lang/Doracash-new/releases/download/';
+        const apk = release.assets.find(asset => /^Doracash-[1-9][0-9]{0,6}\.apk$/.test(asset.name)
+          && asset.size > 0 && asset.browser_download_url === base + tag + '/' + asset.name);
+        if (release.prerelease || release.draft || !/^android-v[0-9]+(\.[0-9]+){1,3}$/.test(tag) || !apk) {
+          status.textContent = 'Todavía no hay una actualización firmada disponible.'; return;
+        }
+        const button = document.getElementById('download');
+        button.href = apk.browser_download_url;
+        button.hidden = false;
+        status.textContent = 'Versión ' + tag.slice("android-v".length) + ' · Abrí el APK descargado para instalarlo.';
+      } catch {
+        status.textContent = 'No se pudo consultar la versión. Podés revisar las publicaciones en GitHub.';
+      }
+    }
+    loadRelease();
+  </script>
+</body>
+</html>

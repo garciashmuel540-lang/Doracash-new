@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.example.auth.configureAppCheck
+import com.example.ui.AndroidUpdatePrompt
+import com.example.ui.theme.DoracashTheme
 import com.example.ui.AppNavigation
 
 class MainActivity : ComponentActivity() {
@@ -15,6 +17,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AppNavigation()
+            DoracashTheme { AndroidUpdatePrompt() }
         }
     }
 

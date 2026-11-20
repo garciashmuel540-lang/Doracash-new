@@ -401,7 +401,7 @@ fun CardsWalletScreen(
                         }
                     }
 
-                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         StatusPill(
                             label = when (googlePayStatus) {
                                 GooglePayReadyStatus.Checking -> "GPay: ..."
@@ -911,7 +911,7 @@ private fun BankCardDeckItem(
                 }
 
                 // Toggleable status badges
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                     FilterChip(
                         selected = card.googleWalletLinked,
                         onClick = onToggleWalletLink,

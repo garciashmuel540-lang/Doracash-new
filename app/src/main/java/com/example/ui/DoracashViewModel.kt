@@ -262,7 +262,7 @@ class DoracashViewModel(
                 Log.e(TAG, "Doraemon chat failed", e)
                 _doraemonChatState.value = DoraemonChatUiState.Error(
                     if (generateSequence<Throwable>(e) { it.cause }.any { it.message.orEmpty().contains("app check", true) || it.message.orEmpty().contains("appcheck", true) })
-                        "Para activar este teléfono, copiá el código privado y registralo en App Check."
+                        "Firebase no pudo verificar esta instalación. Comprobá tu conexión y que tengas la última versión de Doracash."
                     else e.localizedMessage ?: "No se pudo consultar a Doraemon."
                 )
             }
@@ -298,32 +298,16 @@ class DoracashViewModel(
                         val note = action.note ?: ""
                         val sType = CategoryCatalog.savingsTypeOf(catId)
                         val targetGoal = action.targetRef?.let { resolveGoal(snapshot.goals, it) }
-                        val applyAuto = txType == TxType.INCOME && (action.applyAutoDebit ?: true)
-
-                        repository.addTransaction(
-                            txType = txType,
-                            amount = amt,
-                            account = srcAcc,
-                            toAccount = dstAcc,
-                            categoryId = catId,
-                            note = note,
-                            dateIso = dateIso,
-                            exchangeRate = rate,
-                            savingsType = sType,
-                            targetSavingsGoal = targetGoal,
-                            existingGoals = snapshot.goals,
-                            customSavingsName = action.title,
-                            existingCards = snapshot.cards,
-                            applyAutoCardDebit = applyAuto
+                        repository.savePending(
+                            FinanceTransaction(
+                                txType = txType.name, amount = FinanceUtils.round2(amt), currency = srcAcc.currency,
+                                accountId = srcAcc.id, toAccountId = dstAcc?.id,
+                                categoryId = if (sType != null) CategoryCatalog.buildSavingsCategoryId(sType, targetGoal?.id) else catId,
+                                note = note, dateIso = dateIso
+                            ), action.title
                         ).getOrThrow()
-
                         val fmtAmt = FinanceUtils.formatMoney(amt, srcAcc.currencyCode)
-                        val savingsSuffix = if (sType != null) " + sumado a ${sType.shortLabel}" else ""
-                        val autoDebitCount = if (applyAuto) {
-                            FinanceUtils.planAutoCardDebits(amt, srcAcc.currencyCode, snapshot.cards, rate).size
-                        } else 0
-                        val debitSuffix = if (autoDebitCount > 0) " · débito auto a $autoDebitCount tarjeta(s)" else ""
-                        summaries.add("${txType.label} registrado: $fmtAmt (${srcAcc.name})$savingsSuffix$debitSuffix")
+                        summaries.add("${txType.label} pendiente: $fmtAmt (${srcAcc.name}). Confirmalo en Movimientos.")
                     }
 
                     DoraemonActionType.DELETE_TRANSACTION -> {
@@ -527,9 +511,10 @@ class DoracashViewModel(
                             dateIso = dateIso,
                             linkedAccount = linked,
                             fallbackAccount = fallback,
-                            exchangeRate = rate
+                            exchangeRate = rate,
+                            pending = true
                         ).getOrThrow()
-                        summaries.add("Cargo en ${card.alias}: ${FinanceUtils.formatMoney(amt, card.currencyCode)}")
+                        summaries.add("Cargo pendiente en ${card.alias}: ${FinanceUtils.formatMoney(amt, card.currencyCode)}")
                     }
 
                     DoraemonActionType.PAY_CARD_DEBT -> {
@@ -545,8 +530,8 @@ class DoracashViewModel(
                             payAcc.currencyCode,
                             rate
                         )
-                        repository.payCardDebt(card, payAcc, amt, rate).getOrThrow()
-                        summaries.add("Pago a tarjeta ${card.alias}: ${FinanceUtils.formatMoney(amt, payAcc.currencyCode)}")
+                        repository.payCardDebt(card, payAcc, amt, rate, pending = true).getOrThrow()
+                        summaries.add("Pago pendiente a tarjeta ${card.alias}: ${FinanceUtils.formatMoney(amt, payAcc.currencyCode)}")
                     }
 
                     DoraemonActionType.UPDATE_SETTINGS -> {
@@ -879,8 +864,9 @@ class DoracashViewModel(
         note: String,
         dateIso: String,
         accounts: List<WalletAccount>,
-        exchangeRate: Double
-    ) = launchAction("Compra registrada en ${card.alias}") {
+        exchangeRate: Double,
+        pending: Boolean
+    ) = launchAction(if (pending) "Compra pendiente" else "Compra registrada en ${card.alias}") {
         val linked = accounts.firstOrNull { it.id == card.linkedAccountId }
         val fallback = accounts.firstOrNull { it.currency == card.currency } ?: accounts.firstOrNull()
         repository.recordCardCharge(
@@ -891,7 +877,8 @@ class DoracashViewModel(
             dateIso = dateIso,
             linkedAccount = linked,
             fallbackAccount = fallback,
-            exchangeRate = exchangeRate
+            exchangeRate = exchangeRate,
+            pending = pending
         )
     }
 
@@ -899,9 +886,10 @@ class DoracashViewModel(
         card: BankCard,
         payAccount: WalletAccount,
         amountInAccountCurrency: Double,
-        exchangeRate: Double
-    ) = launchAction("Abono aplicado a ${card.alias}") {
-        repository.payCardDebt(card, payAccount, amountInAccountCurrency, exchangeRate)
+        exchangeRate: Double,
+        pending: Boolean
+    ) = launchAction(if (pending) "Abono pendiente" else "Abono aplicado a ${card.alias}") {
+        repository.payCardDebt(card, payAccount, amountInAccountCurrency, exchangeRate, pending)
     }
 
     fun publishAppUpdateChannel(

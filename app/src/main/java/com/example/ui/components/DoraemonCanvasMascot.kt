@@ -13,6 +13,7 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -843,68 +844,18 @@ fun DoraemonMiniHeadIcon(
     active: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val mascot = androidx.compose.ui.graphics.ImageBitmap.imageResource(com.example.R.drawable.img_doraemon_mascot)
     Canvas(modifier = modifier) {
-        val unit = minOf(size.width, size.height)
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val r = unit * 0.44f
-        val stroke = (unit * 0.058f).coerceAtLeast(1.4f)
-
-        val headBrush = if (active) {
-            Brush.radialGradient(
-                colors = listOf(BoingBlueLight, BoingBlueMid, BoingBlueDeep),
-                center = Offset(center.x - r * 0.3f, center.y - r * 0.3f),
-                radius = r * 1.4f
-            )
-        } else {
-            Brush.radialGradient(
-                colors = listOf(Color(0xFFCBD5E1), Color(0xFF94A3B8)),
-                center = center,
-                radius = r * 1.4f
-            )
-        }
-
-        drawCircle(brush = headBrush, radius = r, center = center)
-        drawCircle(color = BoingInk, radius = r, center = center, style = Stroke(width = stroke))
-
-        drawOval(
-            color = BoingWhiteTop,
-            topLeft = Offset(center.x - r * 0.78f, center.y - r * 0.42f),
-            size = Size(r * 1.56f, r * 1.24f)
-        )
-        val eyeW = r * 0.42f
-        val eyeH = r * 0.50f
-        drawOval(color = BoingWhiteTop, topLeft = Offset(center.x - eyeW, center.y - r * 0.75f), size = Size(eyeW, eyeH))
-        drawOval(color = BoingInk, topLeft = Offset(center.x - eyeW, center.y - r * 0.75f), size = Size(eyeW, eyeH), style = Stroke(width = stroke * 0.8f))
-        drawOval(color = BoingWhiteTop, topLeft = Offset(center.x, center.y - r * 0.75f), size = Size(eyeW, eyeH))
-        drawOval(color = BoingInk, topLeft = Offset(center.x, center.y - r * 0.75f), size = Size(eyeW, eyeH), style = Stroke(width = stroke * 0.8f))
-
-        drawCircle(color = BoingInk, radius = r * 0.09f, center = Offset(center.x - eyeW * 0.35f, center.y - r * 0.46f))
-        if (active) {
-            drawArc(
-                color = BoingInk,
-                startAngle = 195f,
-                sweepAngle = 150f,
-                useCenter = false,
-                topLeft = Offset(center.x + eyeW * 0.16f, center.y - r * 0.50f),
-                size = Size(eyeW * 0.68f, r * 0.18f),
-                style = Stroke(width = stroke * 0.85f, cap = StrokeCap.Round)
-            )
-        } else {
-            drawCircle(color = BoingInk, radius = r * 0.09f, center = Offset(center.x + eyeW * 0.35f, center.y - r * 0.46f))
-        }
-
-        val noseR = r * 0.19f
-        val noseC = Offset(center.x, center.y - r * 0.18f)
-        drawCircle(color = if (active) BoingRedLight else Color(0xFF64748B), radius = noseR, center = noseC)
-        drawCircle(color = Color.White.copy(alpha = 0.85f), radius = noseR * 0.3f, center = Offset(noseC.x - noseR * 0.25f, noseC.y - noseR * 0.25f))
-        drawArc(
-            color = BoingInk,
-            startAngle = 15f,
-            sweepAngle = 150f,
-            useCenter = false,
-            topLeft = Offset(center.x - r * 0.48f, center.y - r * 0.02f),
-            size = Size(r * 0.96f, r * 0.56f),
-            style = Stroke(width = stroke * 0.9f, cap = StrokeCap.Round)
+        // Frame the face from the same illustration shown in the assistant.
+        val x = (mascot.width * 0.14f).toInt()
+        val width = mascot.width - x
+        val height = (mascot.height * 0.62f).toInt()
+        drawImage(
+            image = mascot,
+            srcOffset = androidx.compose.ui.unit.IntOffset(x, 0),
+            srcSize = androidx.compose.ui.unit.IntSize(width, height),
+            dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
+            alpha = if (active) 1f else 0.65f
         )
     }
 }

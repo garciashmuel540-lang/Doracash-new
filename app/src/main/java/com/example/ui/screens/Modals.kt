@@ -112,7 +112,8 @@ fun TransactionModalDialog(
     }
 
     var txType by remember { mutableStateOf(initialType) }
-    var pending by remember(txType) { mutableStateOf(false) }
+    var chosenPending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val pending = chosenPending == true
     var amountStr by remember { mutableStateOf("") }
     var dateIso by remember { mutableStateOf(FinanceUtils.todayIso()) }
     var note by remember { mutableStateOf("") }
@@ -167,6 +168,8 @@ fun TransactionModalDialog(
                         )
                     }
                 }
+
+                MovementStatusPicker(chosenPending) { chosenPending = it }
 
                 OutlinedTextField(
                     value = amountStr,
@@ -335,13 +338,6 @@ fun TransactionModalDialog(
                         .testTag("tx_note_input")
                 )
 
-                Column {
-                    Text("Estado del movimiento", style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !pending, onClick = { pending = false }, label = { Text("Realizado") })
-                        FilterChip(selected = pending, onClick = { pending = true }, label = { Text("Pendiente") })
-                    }
-                }
                 if (txType == TxType.INCOME && hasEligibleAutoCards && !pending) {
                     val liveAmt = amountStr.toDoubleOrNull() ?: 0.0
                     val previewDebits = remember(liveAmt, selectedAcc, cards, exchangeRate) {
@@ -435,10 +431,10 @@ fun TransactionModalDialog(
                         pending
                     )
                 },
-                enabled = amt > 0.0 && validDate && validTransfer,
+                enabled = chosenPending != null && amt.isFinite() && FinanceUtils.round2(amt) > 0.0 && validDate && validTransfer,
                 modifier = Modifier.testTag("save_tx_button")
             ) {
-                Text("Guardar")
+                Text(if (pending) "Guardar pendiente" else "Guardar")
             }
         },
         dismissButton = {
@@ -1530,10 +1526,20 @@ fun CardEditDialog(
 }
 
 @Composable
+private fun MovementStatusPicker(pending: Boolean?, onSelect: (Boolean) -> Unit) {
+    Text("Estado del movimiento", style = MaterialTheme.typography.labelLarge)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(selected = pending == false, onClick = { onSelect(false) }, label = { Text("Realizado") })
+        FilterChip(selected = pending == true, onClick = { onSelect(true) }, label = { Text("Pendiente") })
+    }
+    if (pending == true) Text("Se aplicará al saldo cuando lo marques realizado.", style = MaterialTheme.typography.labelSmall)
+}
+
+@Composable
 fun CardChargeDialog(
     card: BankCard,
     onDismiss: () -> Unit,
-    onConfirmCharge: (amount: Double, categoryId: String, note: String, dateIso: String) -> Unit
+    onConfirmCharge: (amount: Double, categoryId: String, note: String, dateIso: String, pending: Boolean) -> Unit
 ) {
     var amountStr by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -1543,11 +1549,13 @@ fun CardChargeDialog(
     }
     var selectedCatId by remember { mutableStateOf(cats.first().id) }
 
+    var pending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Boolean?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Compra con ${card.alias}", style = MaterialTheme.typography.headlineMedium) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                MovementStatusPicker(pending) { pending = it }
                 Text(
                     text = if (card.cardKindEnum == CardKind.DEBIT) {
                         if (card.linkedAccountId.isBlank()) "Vinculá una cuenta para registrar compras." else "La compra se descontará de la cuenta vinculada."
@@ -1596,10 +1604,10 @@ fun CardChargeDialog(
         confirmButton = {
             val amt = amountStr.toDoubleOrNull() ?: 0.0
             Button(
-                onClick = { onConfirmCharge(amt, selectedCatId, note, dateIso) },
-                enabled = amt > 0.0 && dateIso.length == 10
+                onClick = { onConfirmCharge(amt, selectedCatId, note, dateIso, pending == true) },
+                enabled = pending != null && amt.isFinite() && FinanceUtils.round2(amt) > 0.0 && isValidMovementDate(dateIso)
             ) {
-                Text("Registrar Compra")
+                Text(if (pending == true) "Guardar pendiente" else "Registrar compra")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
@@ -1612,7 +1620,7 @@ fun CardPayDebtDialog(
     accounts: List<WalletAccount>,
     exchangeRate: Double,
     onDismiss: () -> Unit,
-    onConfirmPay: (payAccount: WalletAccount, amountInAccountCurrency: Double) -> Unit
+    onConfirmPay: (payAccount: WalletAccount, amountInAccountCurrency: Double, pending: Boolean) -> Unit
 ) {
     if (accounts.isEmpty()) {
         AlertDialog(
@@ -1630,11 +1638,13 @@ fun CardPayDebtDialog(
     )
     var amountStr by remember(selectedAcc) { mutableStateOf(fullInAcc.toString()) }
 
+    var pending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Boolean?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Pagar ${card.alias}", style = MaterialTheme.typography.headlineMedium) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                MovementStatusPicker(pending) { pending = it }
                 Text(
                     text = "Deuda pendiente: ${FinanceUtils.formatMoney(card.debtBalance, card.currencyCode)}",
                     style = MaterialTheme.typography.titleMedium,
@@ -1686,10 +1696,10 @@ fun CardPayDebtDialog(
         confirmButton = {
             val amt = amountStr.toDoubleOrNull() ?: 0.0
             Button(
-                onClick = { onConfirmPay(selectedAcc, amt) },
-                enabled = amt > 0.0
+                onClick = { onConfirmPay(selectedAcc, amt, pending == true) },
+                enabled = pending != null && amt.isFinite() && FinanceUtils.round2(amt) > 0.0 && amt <= fullInAcc
             ) {
-                Text("Confirmar Pago")
+                Text(if (pending == true) "Guardar pendiente" else "Confirmar pago")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
