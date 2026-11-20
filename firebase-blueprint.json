@@ -1,0 +1,228 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Personal finance preferences and currency settings for the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Display name" },
+        "displayCurrency": { "type": "string", "enum": ["NIO", "USD"], "description": "Primary display currency" },
+        "exchangeRate": { "type": "number", "description": "NIO per 1 USD exchange rate" },
+        "darkThemeMode": { "type": "string", "enum": ["SYSTEM", "LIGHT", "DARK"], "description": "Theme preference" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation (FieldValue.serverTimestamp())" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update (FieldValue.serverTimestamp())" }
+      },
+      "required": ["userId", "displayName", "displayCurrency", "exchangeRate", "darkThemeMode", "createdAt", "updatedAt"]
+    },
+    "WalletAccount": {
+      "title": "WalletAccount",
+      "description": "Cash wallet, bank account, savings pot, or credit card",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "accountType": { "type": "string", "enum": ["CASH", "BANK", "SAVINGS", "CREDIT"] },
+        "currency": { "type": "string", "enum": ["NIO", "USD"] },
+        "balance": { "type": "number" },
+        "iconKey": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "accountType", "currency", "balance", "iconKey", "createdAt", "updatedAt"]
+    },
+    "FinanceTransaction": {
+      "title": "FinanceTransaction",
+      "description": "Income, expense, or inter-account transfer record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "txType": { "type": "string", "enum": ["INCOME", "EXPENSE", "TRANSFER"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["NIO", "USD"] },
+        "accountId": { "type": "string" },
+        "toAccountId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "note": { "type": "string" },
+        "dateIso": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "txType", "amount", "currency", "accountId", "categoryId", "note", "dateIso", "createdAt", "updatedAt"]
+    },
+    "ScheduledBill": {
+      "title": "ScheduledBill",
+      "description": "Recurring or one-time scheduled payment date",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["NIO", "USD"] },
+        "accountId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["ONCE", "WEEKLY", "BIWEEKLY", "MONTHLY"] },
+        "startDateIso": { "type": "string" },
+        "paidDates": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "amount", "currency", "accountId", "categoryId", "frequency", "startDateIso", "paidDates", "createdAt", "updatedAt"]
+    },
+    "CategoryBudget": {
+      "title": "CategoryBudget",
+      "description": "Monthly spending limit by category in NIO",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "limitNio": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "categoryId", "limitNio", "createdAt", "updatedAt"]
+    },
+    "SavingsGoal": {
+      "title": "SavingsGoal",
+      "description": "Savings jar goal (Alcancía Dorayaki)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "targetNio": { "type": "number" },
+        "currentNio": { "type": "number" },
+        "iconKey": { "type": "string" },
+        "deadlineIso": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "targetNio", "currentNio", "iconKey", "deadlineIso", "createdAt", "updatedAt"]
+    },
+    "CashReconciliation": {
+      "title": "CashReconciliation",
+      "description": "Cash count and account balance reconciliation audit entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dateIso": { "type": "string" },
+        "accountId": { "type": "string" },
+        "currency": { "type": "string", "enum": ["NIO", "USD"] },
+        "systemBalance": { "type": "number" },
+        "countedBalance": { "type": "number" },
+        "difference": { "type": "number" },
+        "balanceAdjusted": { "type": "boolean" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "dateIso", "accountId", "currency", "systemBalance", "countedBalance", "difference", "balanceAdjusted", "note", "createdAt", "updatedAt"]
+    },
+    "BankCard": {
+      "title": "BankCard",
+      "description": "Credit, debit, prepaid, or virtual card with debt tracking, Google Wallet status, and income auto-debit rules",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "alias": { "type": "string" },
+        "bankName": { "type": "string" },
+        "cardKind": { "type": "string", "enum": ["CREDIT", "DEBIT", "PREPAID", "VIRTUAL"] },
+        "network": { "type": "string", "enum": ["VISA", "MASTERCARD", "AMEX", "OTHER"] },
+        "last4": { "type": "string" },
+        "currency": { "type": "string", "enum": ["NIO", "USD"] },
+        "debtBalance": { "type": "number" },
+        "creditLimit": { "type": "number" },
+        "linkedAccountId": { "type": "string" },
+        "autoDebitEnabled": { "type": "boolean" },
+        "autoDebitMode": { "type": "string", "enum": ["FULL_DEBT", "PERCENTAGE", "FIXED_AMOUNT", "MANUAL"] },
+        "autoDebitValue": { "type": "number" },
+        "googleWalletLinked": { "type": "boolean" },
+        "cardFrozen": { "type": "boolean" },
+        "cutoffDay": { "type": "integer" },
+        "dueDay": { "type": "integer" },
+        "colorTheme": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "alias", "bankName", "cardKind", "network", "last4", "currency",
+        "debtBalance", "creditLimit", "linkedAccountId", "autoDebitEnabled",
+        "autoDebitMode", "autoDebitValue", "googleWalletLinked", "cardFrozen",
+        "cutoffDay", "dueDay", "colorTheme", "createdAt", "updatedAt"
+      ]
+    },
+    "SyncedDevice": {
+      "title": "SyncedDevice",
+      "description": "Registered Android device synced with this user's Firestore account",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "deviceName": { "type": "string" },
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "integer" },
+        "platform": { "type": "string", "enum": ["ANDROID"] },
+        "lastSeenIso": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "deviceName", "versionName", "versionCode", "platform", "lastSeenIso", "createdAt", "updatedAt"]
+    },
+    "AppReleaseInfo": {
+      "title": "AppReleaseInfo",
+      "description": "Per-user update channel metadata notifying older phones when a newer build or download URL is published",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "latestVersionCode": { "type": "integer" },
+        "latestVersionName": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "releaseNotes": { "type": "string" },
+        "forceNotice": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "latestVersionCode", "latestVersionName", "downloadUrl", "releaseNotes", "forceNotice", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User preferences and currency conversion settings"
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/WalletAccount" },
+      "description": "User wallets and financial accounts"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/FinanceTransaction" },
+      "description": "User income, expense, and transfer ledger"
+    },
+    "/users/{userId}/scheduledBills/{billId}": {
+      "schema": { "$ref": "#/entities/ScheduledBill" },
+      "description": "Scheduled recurring or one-time bills"
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/CategoryBudget" },
+      "description": "Monthly category spending limits"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/SavingsGoal" },
+      "description": "User savings goals"
+    },
+    "/users/{userId}/reconciliations/{reconciliationId}": {
+      "schema": { "$ref": "#/entities/CashReconciliation" },
+      "description": "Cash count and balance reconciliation audit logs"
+    },
+    "/users/{userId}/cards/{cardId}": {
+      "schema": { "$ref": "#/entities/BankCard" },
+      "description": "Credit, debit, prepaid, and virtual cards with Wallet link status and auto-debit rules"
+    },
+    "/users/{userId}/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/SyncedDevice" },
+      "description": "Phones synced under this Google user account"
+    },
+    "/users/{userId}/appMeta/{metaId}": {
+      "schema": { "$ref": "#/entities/AppReleaseInfo" },
+      "description": "Per-user release metadata and download link to notify connected devices of app updates"
+    }
+  }
+}

@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="200dp"
+            android:height="220dp"
+            android:viewportWidth="200"
+            android:viewportHeight="220">
+
+            <!-- Ground Shadow -->
+            <path
+                android:fillColor="#2E0F172A"
+                android:pathData="M100,198 A46,7 0 1,1 100,212 A46,7 0 1,1 100,198 Z" />
+
+            <!-- Joyful 4-Point Celebration Sparkles & Confetti -->
+            <group
+                android:name="sparkles_celebrate"
+                android:pivotX="100"
+                android:pivotY="56">
+                <path
+                    android:fillColor="#FBBF24"
+                    android:pathData="M24,26 Q26,38 38,40 Q26,42 24,54 Q22,42 10,40 Q22,38 24,26 Z" />
+                <path
+                    android:fillColor="#38BDF8"
+                    android:pathData="M176,22 Q178,34 190,36 Q178,38 176,50 Q174,38 162,36 Q174,34 176,22 Z" />
+                <path
+                    android:fillColor="#FF4D8D"
+                    android:pathData="M178,94 Q179.5,101 186.5,102.5 Q179.5,104 178,111 Q176.5,104 169.5,102.5 Q176.5,101 178,94 Z" />
+                <path
+                    android:fillColor="#FEF08A"
+                    android:pathData="M22,98 A4,4 0 1,1 22,106 A4,4 0 1,1 22,98 Z" />
+                <path
+                    android:fillColor="#34D399"
+                    android:pathData="M100,2 A4,4 0 1,1 100,10 A4,4 0 1,1 100,2 Z" />
+            </group>
+
+            <group
+                android:name="body_all"
+                android:pivotX="100"
+                android:pivotY="185">
+
+                <!-- Excited Tail -->
+                <group
+                    android:name="tail_group"
+                    android:pivotX="136"
+                    android:pivotY="170">
+                    <path
+                        android:pathData="M136,170 L166,158"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="3.5" />
+                    <path
+                        android:fillColor="#E11D48"
+                        android:pathData="M170,148 A9,9 0 1,1 170,166 A9,9 0 1,1 170,148 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.0" />
+                </group>
+
+                <!-- Left Arm Raised Cheering -->
+                <group
+                    android:name="left_arm"
+                    android:pivotX="58"
+                    android:pivotY="126">
+                    <path
+                        android:pathData="M58,126 L24,84"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="22" />
+                    <path
+                        android:pathData="M58,126 L24,84"
+                        android:strokeColor="#169BF6"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="16" />
+                    <path
+                        android:pathData="M56,123 L25,84"
+                        android:strokeColor="#5BC8FF"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="5" />
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M22,70 A12.5,12.5 0 1,1 22,95 A12.5,12.5 0 1,1 22,70 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.2" />
+                </group>
+
+                <!-- Right Arm Raised High in Victory -->
+                <group
+                    android:name="right_arm"
+                    android:pivotX="142"
+                    android:pivotY="126">
+                    <path
+                        android:pathData="M142,126 L176,80"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="22" />
+                    <path
+                        android:pathData="M142,126 L176,80"
+                        android:strokeColor="#169BF6"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="16" />
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M178,66 A12.5,12.5 0 1,1 178,91 A12.5,12.5 0 1,1 178,66 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.2" />
+                </group>
+
+                <!-- Cel-shaded Torso -->
+                <path
+                    android:fillColor="#169BF6"
+                    android:pathData="M54,114 C54,108 146,108 146,114 L148,170 C148,184 134,188 100,188 C66,188 52,184 52,170 Z"
+                    android:strokeColor="#1E293B"
+                    android:strokeLineJoin="round"
+                    android:strokeWidth="3.4" />
+                <path
+                    android:fillColor="#5BC8FF"
+                    android:pathData="M57,120 C57,114 78,113 84,114 C68,124 64,152 65,176 C58,176 55,172 55,164 Z" />
+                <path
+                    android:fillColor="#0E7AD6"
+                    android:pathData="M134,118 C142,118 145,124 145,132 L145,168 C145,180 132,185 104,185 C124,181 134,172 134,152 Z" />
+
+                <!-- Plump White Feet -->
+                <path
+                    android:fillColor="#FFFFFF"
+                    android:pathData="M71,179 A23,10 0 1,1 71,199 A23,10 0 1,1 71,179 Z"
+                    android:strokeColor="#1E293B"
+                    android:strokeWidth="3.2" />
+                <path
+                    android:fillColor="#FFFFFF"
+                    android:pathData="M129,179 A23,10 0 1,1 129,199 A23,10 0 1,1 129,179 Z"
+                    android:strokeColor="#1E293B"
+                    android:strokeWidth="3.2" />
+
+                <!-- Belly & 4D Pocket -->
+                <path
+                    android:fillColor="#FFFFFF"
+                    android:pathData="M100,119 A37,27 0 1,1 100,173 A37,27 0 1,1 100,119 Z"
+                    android:strokeColor="#1E293B"
+                    android:strokeWidth="3.0" />
+                <path
+                    android:fillColor="#F1F5F9"
+                    android:pathData="M73,144 L127,144 A27,21 0 0,1 73,144 Z"
+                    android:strokeColor="#1E293B"
+                    android:strokeLineJoin="round"
+                    android:strokeWidth="3.0" />
+
+                <!-- Expressive Joyful Head -->
+                <group
+                    android:name="head_group"
+                    android:pivotX="100"
+                    android:pivotY="112">
+                    <path
+                        android:fillColor="#169BF6"
+                        android:pathData="M100,14 A68,53 0 1,1 100,120 A68,53 0 1,1 100,14 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.5" />
+                    <path
+                        android:fillColor="#0E7AD6"
+                        android:pathData="M156,42 C164,56 164,86 146,104 C128,118 82,120 62,110 C96,115 138,104 152,72 C156,62 157,52 156,42 Z" />
+                    <path
+                        android:pathData="M56,31 C68,21 86,18 102,19"
+                        android:strokeColor="#7DD3FC"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="5.5" />
+
+                    <!-- White Face Mask -->
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M100,32 A56,42 0 1,1 100,116 A56,42 0 1,1 100,32 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.2" />
+
+                    <!-- Bright Rosy Celebration Cheeks -->
+                    <path
+                        android:fillColor="#72FB7185"
+                        android:pathData="M58,69 A11,5.5 0 1,1 58,80 A11,5.5 0 1,1 58,69 Z" />
+                    <path
+                        android:fillColor="#72FB7185"
+                        android:pathData="M142,69 A11,5.5 0 1,1 142,80 A11,5.5 0 1,1 142,69 Z" />
+
+                    <!-- Huge Joyful Mouth & Tongue -->
+                    <path
+                        android:fillColor="#B50B24"
+                        android:pathData="M58,72 Q100,82 142,68 C144,102 120,112 100,112 C78,112 56,98 58,72 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineJoin="round"
+                        android:strokeWidth="3.0" />
+                    <path
+                        android:fillColor="#FF9F2E"
+                        android:pathData="M100,90 A22,9.5 0 1,1 100,109 A22,9.5 0 1,1 100,90 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="2.4" />
+
+                    <!-- Philtrum & Whiskers -->
+                    <path
+                        android:pathData="M100,59 L100,76"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="2.8" />
+                    <path
+                        android:pathData="M74,58 L38,49 M72,66 L34,66 M74,74 L38,83 M126,58 L162,49 M128,66 L166,66 M126,74 L162,83"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="2.5" />
+
+                    <!-- Both Eyes Happy Curved Arcs (^ ^) -->
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M88,24 A12,15 0 1,1 88,54 A12,15 0 1,1 88,24 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.0" />
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M112,24 A12,15 0 1,1 112,54 A12,15 0 1,1 112,24 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.0" />
+                    <path
+                        android:pathData="M81,41 Q88,31 95,41"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="3.2" />
+                    <path
+                        android:pathData="M105,41 Q112,31 119,41"
+                        android:strokeColor="#1E293B"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="3.2" />
+
+                    <!-- Glossy Red Nose -->
+                    <path
+                        android:fillColor="#E11D48"
+                        android:pathData="M100,42 A9,9 0 1,1 100,60 A9,9 0 1,1 100,42 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.0" />
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M96.5,45.5 A2.8,2.8 0 1,1 96.5,51.1 A2.8,2.8 0 1,1 96.5,45.5 Z" />
+                </group>
+
+                <!-- Red Collar & Golden Bell with Glow -->
+                <path
+                    android:fillColor="#E11D48"
+                    android:pathData="M60,111 L140,111 C143,111 145,114 145,116 C145,118 143,121 140,121 L60,121 C57,121 55,118 55,116 C55,114 57,111 60,111 Z"
+                    android:strokeColor="#1E293B"
+                    android:strokeWidth="3.2" />
+                <group
+                    android:name="bell_group"
+                    android:pivotX="100"
+                    android:pivotY="116">
+                    <path
+                        android:fillColor="#44FBBF24"
+                        android:pathData="M100,107 A18,18 0 1,1 100,143 A18,18 0 1,1 100,107 Z" />
+                    <path
+                        android:fillColor="#FBBF24"
+                        android:pathData="M100,113 A12.5,12.5 0 1,1 100,138 A12.5,12.5 0 1,1 100,113 Z"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="3.0" />
+                    <path
+                        android:fillColor="#FEF08A"
+                        android:pathData="M96,116 A4,4 0 1,1 96,124 A4,4 0 1,1 96,116 Z" />
+                    <path
+                        android:pathData="M89,124 L111,124"
+                        android:strokeColor="#1E293B"
+                        android:strokeWidth="2.4" />
+                    <path
+                        android:fillColor="#1E293B"
+                        android:pathData="M100,127 A2.6,2.6 0 1,1 100,132.2 A2.6,2.6 0 1,1 100,127 Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="body_all">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="650"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                    android:propertyName="translateY"
+                    android:valueFrom="2"
+                    android:valueTo="-12"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="650"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                    android:propertyName="scaleY"
+                    android:valueFrom="0.97"
+                    android:valueTo="1.03"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="left_arm">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="650"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="rotation"
+                android:valueFrom="-16"
+                android:valueTo="14"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="right_arm">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="650"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="rotation"
+                android:valueFrom="-14"
+                android:valueTo="16"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="head_group">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="650"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="rotation"
+                android:valueFrom="-4"
+                android:valueTo="4"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="bell_group">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="650"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="rotation"
+                android:valueFrom="-15"
+                android:valueTo="15"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="tail_group">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="650"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="rotation"
+                android:valueFrom="-14"
+                android:valueTo="16"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="sparkles_celebrate">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="650"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                    android:propertyName="scaleX"
+                    android:valueFrom="0.82"
+                    android:valueTo="1.15"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="650"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                    android:propertyName="scaleY"
+                    android:valueFrom="0.82"
+                    android:valueTo="1.15"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="650"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                    android:propertyName="rotation"
+                    android:valueFrom="-10"
+                    android:valueTo="10"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

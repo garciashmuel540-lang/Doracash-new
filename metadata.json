@@ -1,0 +1,6 @@
+{
+  "name": "Doracash",
+  "description": "Aplicación de finanzas personales moderna con temática de Doraemon, conciliación de efectivo, calendario de fechas de pago, presupuestos y metas de ahorro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

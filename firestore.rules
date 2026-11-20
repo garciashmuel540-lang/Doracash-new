@@ -1,0 +1,334 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidCurrency(c) { return c in ['NIO', 'USD']; }
+    function isValidDateIso(s) { return s is string && s.size() == 10; }
+    function isValidTimestamp(ts) { return ts is timestamp && ts <= request.time; }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() <= 80 &&
+             isValidCurrency(data.displayCurrency) &&
+             data.exchangeRate is number && data.exchangeRate > 0 && data.exchangeRate <= 10000 &&
+             data.darkThemeMode in ['SYSTEM', 'LIGHT', 'DARK'];
+    }
+
+    function isValidWalletAccount(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.accountType in ['CASH', 'BANK', 'SAVINGS', 'CREDIT'] &&
+             isValidCurrency(data.currency) &&
+             data.balance is number && data.balance >= -1000000000 && data.balance <= 1000000000 &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 30;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.txType in ['INCOME', 'EXPENSE', 'TRANSFER'] &&
+             data.amount is number && data.amount > 0 && data.amount <= 1000000000 &&
+             isValidCurrency(data.currency) &&
+             data.accountId is string && data.accountId.size() >= 1 && data.accountId.size() <= 128 &&
+             (!('toAccountId' in data) || (data.toAccountId is string && data.toAccountId.size() >= 1 && data.toAccountId.size() <= 128)) &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 40 &&
+             data.note is string && data.note.size() <= 160 &&
+             isValidDateIso(data.dateIso);
+    }
+
+    function isValidScheduledBill(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 80 &&
+             data.amount is number && data.amount > 0 && data.amount <= 1000000000 &&
+             isValidCurrency(data.currency) &&
+             data.accountId is string && data.accountId.size() >= 1 && data.accountId.size() <= 128 &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 40 &&
+             data.frequency in ['ONCE', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'] &&
+             isValidDateIso(data.startDateIso) &&
+             data.paidDates is list && data.paidDates.size() <= 120 &&
+             (data.paidDates.size() == 0 || (data.paidDates[0] is string && data.paidDates[0].size() == 10));
+    }
+
+    function isValidBudget(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 40 &&
+             data.limitNio is number && data.limitNio > 0 && data.limitNio <= 1000000000;
+    }
+
+    function isValidGoal(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.targetNio is number && data.targetNio > 0 && data.targetNio <= 1000000000 &&
+             data.currentNio is number && data.currentNio >= 0 && data.currentNio <= 1000000000 &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 30 &&
+             data.deadlineIso is string && data.deadlineIso.size() <= 10;
+    }
+
+    function isValidReconciliation(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             isValidDateIso(data.dateIso) &&
+             data.accountId is string && data.accountId.size() >= 1 && data.accountId.size() <= 128 &&
+             isValidCurrency(data.currency) &&
+             data.systemBalance is number &&
+             data.countedBalance is number &&
+             data.difference is number &&
+             data.balanceAdjusted is bool &&
+             data.note is string && data.note.size() <= 160;
+    }
+
+    function isValidBankCard(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.alias is string && data.alias.size() >= 1 && data.alias.size() <= 60 &&
+             data.bankName is string && data.bankName.size() <= 40 &&
+             data.cardKind in ['CREDIT', 'DEBIT', 'PREPAID', 'VIRTUAL'] &&
+             data.network in ['VISA', 'MASTERCARD', 'AMEX', 'OTHER'] &&
+             data.last4 is string && data.last4.size() == 4 && data.last4.matches('^[0-9]{4}$') &&
+             isValidCurrency(data.currency) &&
+             data.debtBalance is number && data.debtBalance >= 0 && data.debtBalance <= 1000000000 &&
+             data.creditLimit is number && data.creditLimit >= 0 && data.creditLimit <= 1000000000 &&
+             data.linkedAccountId is string && data.linkedAccountId.size() <= 128 &&
+             data.autoDebitEnabled is bool &&
+             data.autoDebitMode in ['FULL_DEBT', 'PERCENTAGE', 'FIXED_AMOUNT', 'MANUAL'] &&
+             data.autoDebitValue is number && data.autoDebitValue >= 0 && data.autoDebitValue <= 1000000000 &&
+             data.googleWalletLinked is bool &&
+             data.cardFrozen is bool &&
+             data.cutoffDay is int && data.cutoffDay >= 1 && data.cutoffDay <= 31 &&
+             data.dueDay is int && data.dueDay >= 1 && data.dueDay <= 31 &&
+             data.colorTheme is string && data.colorTheme.size() >= 1 && data.colorTheme.size() <= 24;
+    }
+
+    function isValidSyncedDevice(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.deviceName is string && data.deviceName.size() >= 1 && data.deviceName.size() <= 80 &&
+             data.versionName is string && data.versionName.size() >= 1 && data.versionName.size() <= 24 &&
+             data.versionCode is int && data.versionCode >= 1 && data.versionCode <= 1000000 &&
+             data.platform in ['ANDROID'] &&
+             isValidDateIso(data.lastSeenIso);
+    }
+
+    function isValidAppRelease(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.latestVersionCode is int && data.latestVersionCode >= 1 && data.latestVersionCode <= 1000000 &&
+             data.latestVersionName is string && data.latestVersionName.size() >= 1 && data.latestVersionName.size() <= 24 &&
+             data.downloadUrl is string && data.downloadUrl.size() <= 400 &&
+             (data.downloadUrl == '' || data.downloadUrl.matches('^https://.*')) &&
+             data.releaseNotes is string && data.releaseNotes.size() <= 240 &&
+             data.forceNotice is bool;
+    }
+
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) &&
+                       incoming().userId == userId &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'displayCurrency', 'exchangeRate', 'darkThemeMode', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'displayCurrency', 'exchangeRate', 'darkThemeMode', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming()) &&
+                       isValidTimestamp(incoming().createdAt) &&
+                       isValidTimestamp(incoming().updatedAt);
+      allow update: if isOwner(userId) && isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTimestamp(incoming().updatedAt) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'displayCurrency', 'exchangeRate', 'darkThemeMode', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /accounts/{accountId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(accountId);
+        allow create: if isOwner(userId) && isValidId(accountId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'name', 'accountType', 'currency', 'balance', 'iconKey', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'accountType', 'currency', 'balance', 'iconKey', 'createdAt', 'updatedAt']) &&
+                         isValidWalletAccount(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(accountId) &&
+                         isValidWalletAccount(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'accountType', 'currency', 'balance', 'iconKey', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(accountId);
+      }
+
+      match /transactions/{transactionId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow create: if isOwner(userId) && isValidId(transactionId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'txType', 'amount', 'currency', 'accountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
+                         isValidTransaction(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(transactionId) &&
+                         isValidTransaction(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      match /scheduledBills/{billId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(billId);
+        allow create: if isOwner(userId) && isValidId(billId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'amount', 'currency', 'accountId', 'categoryId', 'frequency', 'startDateIso', 'paidDates', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'amount', 'currency', 'accountId', 'categoryId', 'frequency', 'startDateIso', 'paidDates', 'createdAt', 'updatedAt']) &&
+                         isValidScheduledBill(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(billId) &&
+                         isValidScheduledBill(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'amount', 'currency', 'accountId', 'categoryId', 'frequency', 'startDateIso', 'paidDates', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(billId);
+      }
+
+      match /budgets/{budgetId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(budgetId);
+        allow create: if isOwner(userId) && isValidId(budgetId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'categoryId', 'limitNio', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'categoryId', 'limitNio', 'createdAt', 'updatedAt']) &&
+                         isValidBudget(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(budgetId) &&
+                         isValidBudget(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['categoryId', 'limitNio', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(budgetId);
+      }
+
+      match /goals/{goalId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(goalId);
+        allow create: if isOwner(userId) && isValidId(goalId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'name', 'targetNio', 'currentNio', 'iconKey', 'deadlineIso', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'targetNio', 'currentNio', 'iconKey', 'deadlineIso', 'createdAt', 'updatedAt']) &&
+                         isValidGoal(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(goalId) &&
+                         isValidGoal(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'targetNio', 'currentNio', 'iconKey', 'deadlineIso', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(goalId);
+      }
+
+      match /reconciliations/{reconciliationId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(reconciliationId);
+        allow create: if isOwner(userId) && isValidId(reconciliationId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'dateIso', 'accountId', 'currency', 'systemBalance', 'countedBalance', 'difference', 'balanceAdjusted', 'note', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'dateIso', 'accountId', 'currency', 'systemBalance', 'countedBalance', 'difference', 'balanceAdjusted', 'note', 'createdAt', 'updatedAt']) &&
+                         isValidReconciliation(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(reconciliationId) &&
+                         isValidReconciliation(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['note', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(reconciliationId);
+      }
+
+      match /cards/{cardId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(cardId);
+        allow create: if isOwner(userId) && isValidId(cardId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll([
+                           'userId', 'alias', 'bankName', 'cardKind', 'network', 'last4', 'currency',
+                           'debtBalance', 'creditLimit', 'linkedAccountId', 'autoDebitEnabled',
+                           'autoDebitMode', 'autoDebitValue', 'googleWalletLinked', 'cardFrozen',
+                           'cutoffDay', 'dueDay', 'colorTheme', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'alias', 'bankName', 'cardKind', 'network', 'last4', 'currency',
+                           'debtBalance', 'creditLimit', 'linkedAccountId', 'autoDebitEnabled',
+                           'autoDebitMode', 'autoDebitValue', 'googleWalletLinked', 'cardFrozen',
+                           'cutoffDay', 'dueDay', 'colorTheme', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidBankCard(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(cardId) &&
+                         isValidBankCard(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'alias', 'bankName', 'cardKind', 'network', 'last4', 'currency',
+                           'debtBalance', 'creditLimit', 'linkedAccountId', 'autoDebitEnabled',
+                           'autoDebitMode', 'autoDebitValue', 'googleWalletLinked', 'cardFrozen',
+                           'cutoffDay', 'dueDay', 'colorTheme', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(cardId);
+      }
+
+      match /devices/{deviceId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(deviceId);
+        allow create: if isOwner(userId) && isValidId(deviceId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'deviceName', 'versionName', 'versionCode', 'platform', 'lastSeenIso', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'deviceName', 'versionName', 'versionCode', 'platform', 'lastSeenIso', 'createdAt', 'updatedAt']) &&
+                         isValidSyncedDevice(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(deviceId) &&
+                         isValidSyncedDevice(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['deviceName', 'versionName', 'versionCode', 'platform', 'lastSeenIso', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(deviceId);
+      }
+
+      match /appMeta/{metaId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(metaId);
+        allow create: if isOwner(userId) && metaId == 'release' &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'latestVersionCode', 'latestVersionName', 'downloadUrl', 'releaseNotes', 'forceNotice', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'latestVersionCode', 'latestVersionName', 'downloadUrl', 'releaseNotes', 'forceNotice', 'createdAt', 'updatedAt']) &&
+                         isValidAppRelease(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && metaId == 'release' &&
+                         isValidAppRelease(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['latestVersionCode', 'latestVersionName', 'downloadUrl', 'releaseNotes', 'forceNotice', 'updatedAt']);
+        allow delete: if isOwner(userId) && metaId == 'release';
+      }
+    }
+  }
+}
