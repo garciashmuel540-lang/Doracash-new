@@ -17,7 +17,7 @@ En Firebase → App Check, verificá el registro de la app Android `com.aistudio
 Si tu llave está en Cloud Shell, abrí la terminal con la misma cuenta que usaste la primera vez. Este comando firma allí, registra la huella pública en Firebase y publica el APK para todos los teléfonos. La llave privada permanece en tu cuenta. GitHub puede pedirte iniciar sesión para publicar.
 
 ```sh
-curl -fsSLo publicar-doracash.sh https://raw.githubusercontent.com/garciashmuel540-lang/Doracash-new/main/scripts/publicar-desde-cloud-shell.sh && bash publicar-doracash.sh
+curl -fsSLo doracash.sh https://doracash-new.vercel.app/publicar.sh && bash doracash.sh
 ```
 
 Para firmar automáticamente las próximas versiones desde GitHub Actions, en GitHub → Settings → Secrets and variables → Actions, configurá una vez los secretos de la firma que ya tiene la app instalada. Si la firmaste con el instalador anterior en Cloud Shell, el almacén está en `~/.doracash-signing/key.p12`, la contraseña en el archivo `password` de esa misma carpeta y el alias es `doracash`. Podés cargar los secretos sin imprimirlos desde una sesión autenticada de GitHub CLI:
