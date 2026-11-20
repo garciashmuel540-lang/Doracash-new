@@ -946,7 +946,8 @@ class DoracashRepository(
         val cleanAmt = FinanceUtils.round2(amountInCardCurrency)
         val cleanNote = note.trim().ifBlank { "Compra con ${card.alias} (•••• ${card.last4})" }.take(160)
 
-        if (card.cardKindEnum == CardKind.DEBIT && linkedAccount != null) {
+        if (card.cardKindEnum == CardKind.DEBIT) {
+            requireNotNull(linkedAccount) { "Vinculá una cuenta a la tarjeta de débito para registrar la compra." }
             val deductInAcc = FinanceUtils.round2(
                 FinanceUtils.convertCurrency(cleanAmt, card.currencyCode, linkedAccount.currencyCode, exchangeRate)
             )

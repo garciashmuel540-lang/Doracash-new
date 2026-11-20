@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.data.CardKind
 import com.example.data.AutoDebitMode
 import com.example.data.BankCard
 import com.example.data.BillOccurrence
@@ -155,11 +156,12 @@ fun DashboardScreen(
         }
     }
 
+    val billingCards = remember(snapshot.cards) { snapshot.cards.filter { it.cardKindEnum != CardKind.DEBIT } }
     val totalCardDebtDisp = remember(snapshot.cards, disp, rate) {
-        snapshot.cards.sumOf { FinanceUtils.convertCurrency(it.debtBalance, it.currencyCode, disp, rate) }
+        billingCards.sumOf { FinanceUtils.convertCurrency(it.debtBalance, it.currencyCode, disp, rate) }
     }
     val autoDebitCardCount = remember(snapshot.cards) {
-        snapshot.cards.count { it.autoDebitEnabled && !it.cardFrozen && it.autoDebitModeEnum != AutoDebitMode.MANUAL }
+        billingCards.count { it.autoDebitEnabled && !it.cardFrozen && it.autoDebitModeEnum != AutoDebitMode.MANUAL }
     }
 
     LazyColumn(
@@ -451,7 +453,7 @@ fun DashboardScreen(
                     }
 
                     if (snapshot.cards.isNotEmpty()) {
-                        Text(
+                        if (billingCards.isNotEmpty()) Text(
                             text = "Deuda total: ${FinanceUtils.formatMoney(totalCardDebtDisp, disp)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = if (totalCardDebtDisp > 0.0) DoraCollarRed else DoraMintGreen,
@@ -471,7 +473,7 @@ fun DashboardScreen(
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = FinanceUtils.formatMoney(card.debtBalance, card.currencyCode),
+                                            text = if (card.cardKindEnum == CardKind.DEBIT) "Débito" else FinanceUtils.formatMoney(card.debtBalance, card.currencyCode),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )

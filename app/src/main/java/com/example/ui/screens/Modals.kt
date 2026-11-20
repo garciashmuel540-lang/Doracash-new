@@ -1522,8 +1522,8 @@ fun CardChargeDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = if (card.cardKindEnum == CardKind.DEBIT && card.linkedAccountId.isNotBlank()) {
-                        "Tarjeta de débito: descontará de su cuenta vinculada."
+                    text = if (card.cardKindEnum == CardKind.DEBIT) {
+                        if (card.linkedAccountId.isBlank()) "Vinculá una cuenta para registrar compras." else "La compra se descontará de la cuenta vinculada."
                     } else {
                         "Sumará este gasto a la deuda de tu tarjeta (•••• ${card.last4})."
                     },
