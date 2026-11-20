@@ -57,18 +57,20 @@ jobs:
           if gh release view "android-v$version" >/dev/null 2>&1; then
             echo "La versión ya está publicada."
           elif [[ "$SIGNING_CONFIGURED" != true ]]; then
-            echo "::warning::La publicación necesita la firma permanente de Doracash."
-            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then exit 1; fi
+            if ! gh release view "firma-local-v$version" >/dev/null 2>&1; then
+              echo 'local=true' >> "$GITHUB_OUTPUT"
+            fi
+            echo "::notice::La versión instalable se publica desde Cloud Shell con la firma original."
           else
             echo 'build=true' >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/setup-java@v4
-        if: steps.release.outputs.build == 'true'
+        if: steps.release.outputs.build == 'true' || steps.release.outputs.local == 'true'
         with:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-        if: steps.release.outputs.build == 'true'
+        if: steps.release.outputs.build == 'true' || steps.release.outputs.local == 'true'
         with:
           gradle-version: '9.3.1'
       - name: Firmar y publicar la actualización
@@ -96,3 +98,17 @@ jobs:
           "$signer" verify "$apk"
           sha256sum "$apk" > SHA256SUMS.txt
           gh release create "android-v$VERSION" "$apk" SHA256SUMS.txt --target "$GITHUB_SHA" --latest --title "Doracash $VERSION" --notes "Actualización Android firmada de Doracash."
+
+      - name: Preparar el APK para la firma original en Cloud Shell
+        if: steps.release.outputs.local == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          CODE: ${{ steps.release.outputs.code }}
+        run: |
+          set -euo pipefail
+          gradle assembleRelease -PdoracashUnsigned=true
+          out=app/build/outputs/apk/release
+          jq -e --arg v "$VERSION" --argjson c "$CODE" '.applicationId == "com.aistudio.doracash.kmpzqx" and (.elements | length == 1) and .elements[0].versionName == $v and .elements[0].versionCode == $c' "$out/output-metadata.json" >/dev/null
+          zip -j "Doracash-para-firmar-$CODE.zip" "$out/app-release-unsigned.apk"
+          gh release create "firma-local-v$VERSION" "Doracash-para-firmar-$CODE.zip" --target "$GITHUB_SHA" --prerelease --latest=false --title "Base para firmar Doracash $VERSION" --notes "Paquete de distribución para el titular de la firma. La app instalable se publica en android-v$VERSION."
