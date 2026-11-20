@@ -1,0 +1,28 @@
+name: Publicar compilación para firma personal
+on:
+  push:
+    paths: ['.github/workflows/publicar-base-android.yml']
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Doracash-Android
+          run-id: 44665497548
+          github-token: ${{ github.token }}
+      - name: Verificar y publicar el APK base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          verifier=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$verifier" verify app-debug.apk
+          mv app-debug.apk Doracash-base.apk
+          sha256sum Doracash-base.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release create base-debito-1 Doracash-base.apk SHA256SUMS.txt --prerelease --target f4ab383646340d3600071996e46d3a6c50c84ee1 --title "Base Android para firma personal" --notes "Compilación con tarjetas de débito corregidas. Usar el instalador de Cloud Shell para aplicar una firma permanente."
