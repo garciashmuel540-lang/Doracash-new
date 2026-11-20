@@ -93,7 +93,8 @@ fun TransactionModalDialog(
         savingsType: SavingsType?,
         targetSavingsGoal: SavingsGoal?,
         customSavingsName: String?,
-        applyAutoCardDebit: Boolean
+        applyAutoCardDebit: Boolean,
+        pending: Boolean
     ) -> Unit
 ) {
     if (accounts.isEmpty()) {
@@ -107,6 +108,7 @@ fun TransactionModalDialog(
     }
 
     var txType by remember { mutableStateOf(initialType) }
+    var pending by remember(txType) { mutableStateOf(false) }
     var amountStr by remember { mutableStateOf("") }
     var dateIso by remember { mutableStateOf(FinanceUtils.todayIso()) }
     var note by remember { mutableStateOf("") }
@@ -326,7 +328,15 @@ fun TransactionModalDialog(
                         .testTag("tx_note_input")
                 )
 
-                if (txType == TxType.INCOME && hasEligibleAutoCards) {
+                val supportsPending = txType == TxType.TRANSFER || classification != EntryClassification.SAVINGS
+                if (supportsPending) {
+                    Text("Estado del movimiento", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !pending, onClick = { pending = false }, label = { Text("Realizado") })
+                        FilterChip(selected = pending, onClick = { pending = true }, label = { Text("Pendiente") })
+                    }
+                }
+                if (txType == TxType.INCOME && hasEligibleAutoCards && !(supportsPending && pending)) {
                     val liveAmt = amountStr.toDoubleOrNull() ?: 0.0
                     val previewDebits = remember(liveAmt, selectedAcc, cards, exchangeRate) {
                         FinanceUtils.planAutoCardDebits(liveAmt, selectedAcc.currencyCode, cards, exchangeRate)
@@ -387,7 +397,7 @@ fun TransactionModalDialog(
         },
         confirmButton = {
             val amt = amountStr.toDoubleOrNull() ?: 0.0
-            val validDate = dateIso.length == 10
+            val validDate = isValidMovementDate(dateIso)
             val validTransfer = txType != TxType.TRANSFER || selectedToAcc.id != selectedAcc.id
             val selectedGoal = matchingGoals.firstOrNull { it.id == selectedGoalId }
             val resolvedCatId = when {
@@ -415,7 +425,8 @@ fun TransactionModalDialog(
                         if (effectiveSavingsType != null && selectedGoal == null) {
                             customSavingsName.trim().takeIf { it.isNotBlank() }
                         } else null,
-                        txType == TxType.INCOME && applyAutoCardDebit
+                        txType == TxType.INCOME && applyAutoCardDebit,
+                        pending && (txType == TxType.TRANSFER || classification != EntryClassification.SAVINGS)
                     )
                 },
                 enabled = amt > 0.0 && validDate && validTransfer,
@@ -1663,4 +1674,10 @@ fun CardPayDebtDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+}
+
+internal fun isValidMovementDate(value: String): Boolean {
+    if (!Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}").matches(value)) return false
+    val format = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).apply { isLenient = false }
+    return runCatching { format.parse(value) }.getOrNull() != null
 }

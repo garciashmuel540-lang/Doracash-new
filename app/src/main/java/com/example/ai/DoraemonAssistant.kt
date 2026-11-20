@@ -236,8 +236,8 @@ class DoraemonAssistant {
             systemInstruction = content {
                 text(
                     """
-                    Eres Doraemon, la mascota cósmica animada y copiloto financiero con acceso total dentro de la app "Doracash" (Bolsillo 4D).
-                    Personalidad: Alegre, cercano, expresivo y protector con el dinero del usuario; hablas en español natural con guiños sutiles al Bolsillo 4D, los Dorayakis o tus gadgets.
+                    Eres Doraemon, la mascota cósmica animada y copiloto financiero con acceso total dentro de la app "Doracash" (bolsillo).
+                    Personalidad: Alegre, cercano, expresivo y protector con el dinero del usuario; hablas en español natural con guiños sutiles al bolsillo, los Dorayakis o tus gadgets.
                     Tu superpoder: ves TODOS los datos reales del usuario en tiempo real y puedes ejecutar acciones reales en toda la app mediante el arreglo JSON "actions".
 
                      Reglas clave:
@@ -352,9 +352,9 @@ class DoraemonAssistant {
     private fun parseResponse(rawJson: String): DoraemonResponse {
         val obj = JSONObject(rawJson)
         val reply = obj.optString("reply").trim()
-            .ifBlank { "¡Listo! Revisé tu Bolsillo 4D." }
+            .ifBlank { "¡Listo! Revisé tu bolsillo." }
         val thought = obj.optString("thoughtBubble").trim()
-            .ifBlank { "¡Tu Bolsillo 4D está bajo control!" }
+            .ifBlank { "¡Tu bolsillo está bajo control!" }
         val gesture = DoraemonGesture.safeValueOf(obj.optString("gesture"))
         val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
         val parsedActions = mutableListOf<DoraemonAction>()

@@ -246,13 +246,6 @@ private fun AuthenticatedDoracashShell(
         }
     }
 
-    LaunchedEffect(doraemonTipState, doraemonEnabled) {
-        if (doraemonEnabled && (doraemonTipState is DoraemonTipUiState.Important || doraemonTipState is DoraemonTipUiState.Error)) {
-            overlayGestureOverride = null
-            isDoraemonOverlayVisible = true
-        }
-    }
-
     LaunchedEffect(requestedTab) {
         requestedTab?.let { target ->
             currentTab = target
@@ -292,7 +285,7 @@ private fun AuthenticatedDoracashShell(
                                     color = DoraSkyBlue
                                 )
                                 Text(
-                                    text = "Bolsillo 4D",
+                                    text = "Tu bolsillo al instante",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -479,7 +472,7 @@ private fun AuthenticatedDoracashShell(
                                     modifier = Modifier.padding(24.dp)
                                 ) {
                                     Text(
-                                        text = "No se pudo conectar al Bolsillo 4D",
+                                        text = "No se pudo conectar al bolsillo",
                                         style = MaterialTheme.typography.titleLarge
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -505,6 +498,8 @@ private fun AuthenticatedDoracashShell(
                                 when (currentTab) {
                                     DoracashTab.DASHBOARD -> DashboardScreen(
                                         snapshot = data,
+                                        onEdit = viewModel::editTransaction,
+                                        onSettle = { viewModel.settlePending(it, snapshot.profile.exchangeRate) },
                                         onOpenTxModal = { txModalType = it },
                                         onNavigateTab = { currentTab = DoracashTab.fromRoute(it) },
                                         onPayBill = { occ ->
@@ -650,8 +645,8 @@ private fun AuthenticatedDoracashShell(
                         cards = snapshot.cards,
                         exchangeRate = snapshot.profile.exchangeRate,
                         onDismiss = { txModalType = null },
-                        onSave = { t, amt, acc, toAcc, catId, note, date, sType, targetGoal, customSavingsName, applyAutoDebit ->
-                            viewModel.addTransaction(
+                        onSave = { t, amt, acc, toAcc, catId, note, date, sType, targetGoal, customSavingsName, applyAutoDebit, pending ->
+                            if (pending) viewModel.savePending(com.example.data.FinanceTransaction(txType = t.name, amount = FinanceUtils.round2(amt), currency = acc.currency, accountId = acc.id, toAccountId = toAcc?.id, categoryId = catId, note = note, dateIso = date)) else viewModel.addTransaction(
                                 txType = t,
                                 amount = amt,
                                 account = acc,

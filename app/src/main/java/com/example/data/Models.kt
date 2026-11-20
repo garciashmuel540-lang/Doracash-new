@@ -610,7 +610,8 @@ data class DoracashSnapshot(
     val reconciliations: List<CashReconciliation>,
     val cards: List<BankCard> = emptyList(),
     val devices: List<SyncedDevice> = emptyList(),
-    val releaseInfo: AppReleaseInfo? = null
+    val releaseInfo: AppReleaseInfo? = null,
+    val pending: List<FinanceTransaction> = emptyList()
 )
 
 sealed interface UiState<out T> {

@@ -64,3 +64,17 @@ fun configureAppCheck(context: Context, intent: Intent?) {
         Log.e(TAG, "Failed to initialize Firebase App Check", e)
     }
 }
+
+fun copyAppCheckCode(context: Context): Boolean {
+    if (!BuildConfig.DEBUG || com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) return false
+    val prefs = context.getSharedPreferences(DEBUG_STORE_PREFIX + FirebaseApp.getInstance().persistenceKey, Context.MODE_PRIVATE)
+    val code = prefs.getString(DEBUG_SECRET_KEY, null) ?: return false
+    val clip = android.content.ClipData.newPlainText("Activación privada de Doracash", code)
+    if (android.os.Build.VERSION.SDK_INT >= 24) {
+        clip.description.extras = android.os.PersistableBundle().apply {
+            putBoolean("android.content.extra.IS_SENSITIVE", true)
+        }
+    }
+    context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(clip)
+    return true
+}

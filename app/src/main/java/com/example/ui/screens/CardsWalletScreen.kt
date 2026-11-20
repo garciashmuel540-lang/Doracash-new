@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -442,15 +443,15 @@ fun CardsWalletScreen(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("detect_google_pay_button")
                     ) {
                         Icon(Icons.Filled.CreditCard, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Detectar e importar tarjeta con Google Pay")
+                        Text("Importar tarjeta con Google Pay")
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         FilledTonalButton(
                             onClick = {
                                 WalletPlatformBridge.openGoogleWallet(context)
@@ -459,8 +460,8 @@ fun CardsWalletScreen(
                             },
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
                                 .testTag("open_google_wallet_button")
                         ) {
                             Icon(Icons.Filled.Contactless, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -476,8 +477,8 @@ fun CardsWalletScreen(
                             },
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
                                 .testTag("open_google_pay_button")
                         ) {
                             Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -495,12 +496,12 @@ fun CardsWalletScreen(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("open_nfc_settings_button")
                     ) {
                         Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Configurar Pagos sin Contacto / NFC predeterminado")
+                        Text("Configurar pagos sin contacto")
                     }
                 }
             }
@@ -962,7 +963,7 @@ private fun BankCardDeckItem(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Filled.ShoppingBag, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -977,7 +978,7 @@ private fun BankCardDeckItem(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp)
+                                .heightIn(min = 48.dp)
                         ) {
                             Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))

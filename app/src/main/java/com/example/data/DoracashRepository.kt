@@ -136,7 +136,10 @@ class DoracashRepository(
                 reconFlow,
                 cardsFlow,
                 devicesFlow,
-                releaseFlow
+                releaseFlow,
+                userDoc(userId).collection("pendingTransactions").snapshots().map { snapshot ->
+                    snapshot.toObjects(FinanceTransaction::class.java).sortedBy { it.dateIso }
+                }
             )
         ) { values ->
             @Suppress("UNCHECKED_CAST")
@@ -150,7 +153,8 @@ class DoracashRepository(
                 reconciliations = values[6] as List<CashReconciliation>,
                 cards = values[7] as List<BankCard>,
                 devices = values[8] as List<SyncedDevice>,
-                releaseInfo = values[9] as AppReleaseInfo?
+                releaseInfo = values[9] as AppReleaseInfo?,
+                pending = values[10] as List<FinanceTransaction>
             )
         }
     }
@@ -422,6 +426,42 @@ class DoracashRepository(
         }
         batch.commit().await()
     }
+
+    suspend fun savePending(tx: FinanceTransaction): Result<Unit> = safeWrite("pendingTransactions", OperationType.CREATE) {
+        val uid = requireUserId()
+        userDoc(uid).collection("pendingTransactions").document()
+            .set(tx.copy(userId = uid).toCreateMap()).await()
+    }
+
+    suspend fun settlePending(id: String, rate: Double): Result<Unit> = safeWrite("pendingTransactions/$id", OperationType.UPDATE) {
+        val user = userDoc(requireUserId())
+        val draft = user.collection("pendingTransactions").document(id)
+        db.runTransaction { transaction ->
+            val tx = transaction.get(draft).toObject(FinanceTransaction::class.java)
+                ?: return@runTransaction
+            val source = user.collection("accounts").document(tx.accountId)
+            val account = requireNotNull(transaction.get(source).toObject(WalletAccount::class.java)) { "La cuenta de origen ya no existe." }
+            require(account.currency == tx.currency) { "La moneda de la cuenta cambió." }
+            if (tx.typeEnum == TxType.TRANSFER) {
+                val dest = user.collection("accounts").document(requireNotNull(tx.toAccountId))
+                require(dest != source)
+                val target = requireNotNull(transaction.get(dest).toObject(WalletAccount::class.java))
+                val converted = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, target.currencyCode, rate)
+                transaction.update(dest, "balance", FinanceUtils.round2(target.balance + converted), "updatedAt", FieldValue.serverTimestamp())
+            }
+            val delta = if (tx.typeEnum == TxType.INCOME) tx.amount else -tx.amount
+            transaction.update(source, "balance", FinanceUtils.round2(account.balance + delta), "updatedAt", FieldValue.serverTimestamp())
+            transaction.set(user.collection("transactions").document(id), tx.toCreateMap())
+            transaction.delete(draft)
+        }.await()
+        Unit
+    }
+
+    suspend fun editTransaction(tx: FinanceTransaction, note: String, date: String): Result<Unit> =
+        safeWrite("transactions/${tx.id}", OperationType.UPDATE) {
+            userDoc(requireUserId()).collection("transactions").document(tx.id)
+                .update("note", note.trim().take(160), "dateIso", date, "updatedAt", FieldValue.serverTimestamp()).await()
+        }
 
     suspend fun deleteTransaction(
         tx: FinanceTransaction,
@@ -1281,7 +1321,7 @@ class DoracashRepository(
     }
 
     private suspend fun clearSubcollectionsInternal(uid: String) {
-        val cols = listOf("accounts", "transactions", "scheduledBills", "budgets", "goals", "reconciliations", "cards")
+        val cols = listOf("pendingTransactions", "accounts", "transactions", "scheduledBills", "budgets", "goals", "reconciliations", "cards")
         val batch = db.batch()
         var ops = 0
         for (c in cols) {

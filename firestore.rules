@@ -182,6 +182,25 @@ service cloud.firestore {
         allow delete: if isOwner(userId) && isValidId(transactionId);
       }
 
+      match /pendingTransactions/{transactionId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow create: if isOwner(userId) && isValidId(transactionId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'txType', 'amount', 'currency', 'accountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
+                         isValidTransaction(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+        allow update: if isOwner(userId) && isValidId(transactionId) &&
+                         isValidTransaction(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
       match /scheduledBills/{billId} {
         allow list: if isOwner(userId);
         allow get: if isOwner(userId) && isValidId(billId);

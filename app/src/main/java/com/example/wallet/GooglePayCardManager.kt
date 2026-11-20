@@ -95,7 +95,7 @@ object GooglePayCardManager {
             put(
                 "merchantInfo",
                 JSONObject().apply {
-                    put("merchantName", "Doracash Bolsillo 4D (Verificación)")
+                    put("merchantName", "Doracash bolsillo (Verificación)")
                 }
             )
         }.toString()

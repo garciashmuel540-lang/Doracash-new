@@ -195,9 +195,7 @@ class DoracashViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to evaluate important Doraemon notice", e)
-                _doraemonTipState.value = DoraemonTipUiState.Error(
-                    e.localizedMessage ?: "No se pudo consultar a Doraemon IA."
-                )
+                _doraemonTipState.value = DoraemonTipUiState.NothingImportant
             }
         }
     }
@@ -218,6 +216,20 @@ class DoracashViewModel(
             isUser = true,
             text = trimmed
         )
+        if (trimmed.trim('¿', '?').equals("Cómo van mis finanzas", ignoreCase = true)) {
+            val currency = CurrencyCode.safeValueOf(snapshot.profile.displayCurrency)
+            val rate = snapshot.profile.exchangeRate
+            val balance = snapshot.accounts.sumOf { FinanceUtils.convertCurrency(it.balance, it.currencyCode, currency, rate) }
+            val month = FinanceUtils.currentYearMonth()
+            fun monthly(type: TxType) = snapshot.transactions.filter { it.typeEnum == type && it.dateIso.startsWith(month) }
+                .sumOf { FinanceUtils.convertCurrency(it.amount, it.currencyCode, currency, rate) }
+            val reply = "Saldo en tus cuentas: ${FinanceUtils.formatMoney(balance, currency)}. " +
+                "Este mes ingresaron ${FinanceUtils.formatMoney(monthly(TxType.INCOME), currency)} y gastaste ${FinanceUtils.formatMoney(monthly(TxType.EXPENSE), currency)}. " +
+                "Movimientos pendientes: ${snapshot.pending.size}."
+            _doraemonMessages.value = _doraemonMessages.value + userMsg + DoraemonChatMessage(id = UUID.randomUUID().toString(), isUser = false, text = reply)
+            _doraemonChatState.value = DoraemonChatUiState.Idle
+            return
+        }
         val historyBeforeTurn = _doraemonMessages.value
         _doraemonMessages.value = historyBeforeTurn + userMsg
         _doraemonChatState.value = DoraemonChatUiState.Thinking
@@ -249,7 +261,9 @@ class DoracashViewModel(
             } catch (e: Exception) {
                 Log.e(TAG, "Doraemon chat failed", e)
                 _doraemonChatState.value = DoraemonChatUiState.Error(
-                    e.localizedMessage ?: "Error al comunicarse con Doraemon IA."
+                    if (generateSequence<Throwable>(e) { it.cause }.any { it.message.orEmpty().contains("app check", true) || it.message.orEmpty().contains("appcheck", true) })
+                        "Para activar este teléfono, copiá el código privado y registralo en App Check."
+                    else e.localizedMessage ?: "No se pudo consultar a Doraemon."
                 )
             }
         }
@@ -559,7 +573,7 @@ class DoracashViewModel(
 
                     DoraemonActionType.CLEAR_ALL_DATA -> {
                         repository.clearAllUserData().getOrThrow()
-                        summaries.add("Bolsillo 4D reiniciado")
+                        summaries.add("Bolsillo reiniciado")
                     }
                 }
             } catch (e: CancellationException) {
@@ -669,7 +683,7 @@ class DoracashViewModel(
             plannedCount > 0 -> "Ingreso guardado y debitado a $plannedCount tarjeta(s)"
             savingsType != null || CategoryCatalog.classificationOf(categoryId) == EntryClassification.SAVINGS ->
                 "Movimiento guardado y sumado a Mis Ahorros"
-            else -> "Movimiento guardado en el Bolsillo 4D"
+            else -> "Movimiento guardado en el bolsillo"
         }
         launchAction(successText) {
             repository.addTransaction(
@@ -762,7 +776,7 @@ class DoracashViewModel(
         iconKey: String,
         deadlineIso: String,
         initialNio: Double = 0.0
-    ) = launchAction("Ahorro registrado en el Bolsillo 4D") {
+    ) = launchAction("Ahorro registrado en el bolsillo") {
         repository.addGoal(name, targetNio, iconKey, deadlineIso, initialNio)
     }
 
@@ -910,11 +924,17 @@ class DoracashViewModel(
         repository.removeSyncedDevice(deviceId)
     }
 
+    fun savePending(tx: FinanceTransaction) = launchAction("Movimiento pendiente guardado") { repository.savePending(tx) }
+    fun settlePending(id: String, rate: Double) = launchAction("Movimiento realizado") { repository.settlePending(id, rate) }
+    fun editTransaction(tx: FinanceTransaction, note: String, date: String) = launchAction("Movimiento actualizado") {
+        repository.editTransaction(tx, note, date)
+    }
+
     fun loadDemoData() = launchAction("Datos de demostración cargados") {
         repository.seedDemoData()
     }
 
-    fun clearAllData() = launchAction("Bolsillo 4D reiniciado en limpio") {
+    fun clearAllData() = launchAction("Bolsillo reiniciado en limpio") {
         repository.clearAllUserData()
     }
 

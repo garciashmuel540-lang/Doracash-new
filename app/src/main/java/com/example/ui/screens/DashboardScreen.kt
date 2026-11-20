@@ -34,6 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -74,12 +77,26 @@ import java.util.Locale
 @Composable
 fun DashboardScreen(
     snapshot: DoracashSnapshot,
+    onEdit: (com.example.data.FinanceTransaction, String, String) -> Unit,
+    onSettle: (String) -> Unit,
     onOpenTxModal: (TxType) -> Unit,
     onNavigateTab: (String) -> Unit,
     onPayBill: (BillOccurrence) -> Unit,
     onLoadDemo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var editing by remember { mutableStateOf<com.example.data.FinanceTransaction?>(null) }
+    editing?.let { tx ->
+        var note by remember(tx.id) { mutableStateOf(tx.note) }
+        var date by remember(tx.id) { mutableStateOf(tx.dateIso) }
+        AlertDialog(onDismissRequest = { editing = null }, title = { Text("Editar movimiento") },
+            text = { Column {
+                OutlinedTextField(note, { note = it.take(160) }, label = { Text("Descripción") })
+                OutlinedTextField(date, { date = it }, label = { Text("Fecha (AAAA-MM-DD)") })
+            } },
+            confirmButton = { TextButton(enabled = isValidMovementDate(date), onClick = { onEdit(tx, note, date); editing = null }) { Text("Guardar") } },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancelar") } })
+    }
     val disp = CurrencyCode.safeValueOf(snapshot.profile.displayCurrency)
     val rate = snapshot.profile.exchangeRate
     val currentYm = remember { FinanceUtils.currentYearMonth() }
@@ -164,11 +181,24 @@ fun DashboardScreen(
         billingCards.count { it.autoDebitEnabled && !it.cardFrozen && it.autoDebitModeEnum != AutoDebitMode.MANUAL }
     }
 
+    val today by produceState(initialValue = FinanceUtils.todayIso()) {
+        while (true) {
+            value = FinanceUtils.todayIso()
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    val payday = remember(today) {
+        val now = FinanceUtils.parseIsoToCalendar(today)
+        val day = now.get(Calendar.DAY_OF_MONTH)
+        val days = (if (day <= 15) 15 else now.getActualMaximum(Calendar.DAY_OF_MONTH)) - day
+        when (days) { 0 -> "Hoy es quincena"; 1 -> "Falta 1 día para la quincena"; else -> "Faltan $days días para la quincena" }
+    }
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier.fillMaxSize()
     ) {
+        item { Text(payday, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (showEmptyStarterBanner) {
             item {
                 Surface(
@@ -183,7 +213,7 @@ fun DashboardScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "¡Tu Bolsillo 4D está listo!",
+                                text = "¡Tu bolsillo está listo!",
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Text(
@@ -617,6 +647,17 @@ fun DashboardScreen(
             }
         }
 
+        if (snapshot.pending.isNotEmpty()) {
+            item { Text("Movimientos pendientes", style = MaterialTheme.typography.titleLarge) }
+            items(snapshot.pending, key = { "pendiente-" + it.id }) { tx ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        TransactionCompactRow(tx = tx, accounts = snapshot.accounts)
+                        TextButton(onClick = { onSettle(tx.id) }) { Text("Marcar como realizado") }
+                    }
+                }
+            }
+        }
         // Recent Transactions
         item {
             Card(
@@ -644,7 +685,7 @@ fun DashboardScreen(
                         )
                     } else {
                         snapshot.transactions.take(5).forEach { tx ->
-                            TransactionCompactRow(tx = tx, accounts = snapshot.accounts)
+                            TransactionCompactRow(tx = tx, accounts = snapshot.accounts, modifier = Modifier.clickable(onClickLabel = "Editar movimiento") { editing = tx })
                         }
                     }
                 }

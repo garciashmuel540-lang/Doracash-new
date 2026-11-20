@@ -134,7 +134,7 @@ fun DoraemonImportantPopup(
 
     val bubbleText = when {
         gestureOverride == DoraemonGesture.THINK -> "Analizando tus cuentas, pagos y ahorros del mes…"
-        gestureOverride == DoraemonGesture.CELEBRATE -> "¡Tu Bolsillo 4D avanza genial! Toca para ver ideas."
+        gestureOverride == DoraemonGesture.CELEBRATE -> "¡Tu bolsillo avanza genial! Toca para ver ideas."
         tipState is DoraemonTipUiState.Important -> tipState.tip
         tipState is DoraemonTipUiState.Error -> tipState.message
         else -> defaultThoughtText
@@ -274,7 +274,7 @@ fun DoraemonAssistantSheet(
                             label = "gesture_status_label"
                         ) { g ->
                             val statusText = when (g) {
-                                DoraemonGesture.SALUTE -> "Saludando · Bolsillo 4D listo"
+                                DoraemonGesture.SALUTE -> "Saludando · bolsillo listo"
                                 DoraemonGesture.THINK -> "Pensando y analizando…"
                                 DoraemonGesture.CELEBRATE -> "¡Celebrando contigo!"
                                 DoraemonGesture.ALERT -> "¡Atención a tus finanzas!"
@@ -421,7 +421,7 @@ fun DoraemonAssistantSheet(
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = "Buscando un gadget en el Bolsillo 4D…",
+                                    text = "Buscando un gadget en el bolsillo…",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -430,6 +430,15 @@ fun DoraemonAssistantSheet(
                     }
                 }
 
+                if (chatState is DoraemonChatUiState.Error && chatState.message.contains("activar este teléfono")) {
+                    item {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        TextButton(onClick = {
+                            val ok = com.example.auth.copyAppCheckCode(context)
+                            android.widget.Toast.makeText(context, if (ok) "Código privado copiado. Pegalo en Cloud Shell." else "Reintentá la consulta y volvé a copiar el código.", android.widget.Toast.LENGTH_LONG).show()
+                        }) { Text("Copiar código de activación") }
+                    }
+                }
                 if (chatState is DoraemonChatUiState.Error) {
                     item {
                         Surface(

@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Doracash</string>
-    <string name="app_tagline">Bolsillo 4D · Tus Finanzas Mágicas</string>
+    <string name="app_tagline">Tu bolsillo al instante</string>
     <string name="sign_in_with_google">Continuar con Google</string>
     <string name="auth_welcome_title">Tu bolsillo mágico para dominar tus finanzas</string>
     <string name="auth_welcome_subtitle">Controla tus cuentas en Córdobas y Dólares, arqueos de efectivo, fechas de pago y ahorros sincronizados en la nube.</string>
@@ -22,7 +22,7 @@
     <string name="cd_hero_art">Ilustración de bolsillo mágico 4D con monedas doradas</string>
     <string name="cd_magic_door">Abrir Puerta Mágica para nuevo movimiento</string>
     <string name="cd_doraemon_mascot">Mascota Doraemon IA con consejos y acciones</string>
-    <string name="doraemon_title">Doraemon IA · Bolsillo 4D</string>
+    <string name="doraemon_title">Doraemon IA · Tu bolsillo al instante</string>
     <string name="doraemon_subtitle">Control total de tus finanzas en tiempo real</string>
     <string name="doraemon_input_hint">Pídele algo a Doraemon…</string>
     <string name="doraemon_send">Enviar mensaje a Doraemon</string>

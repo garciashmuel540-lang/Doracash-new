@@ -112,7 +112,7 @@ fun GoalsBudgetsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "Mis Ahorros · Bolsillo 4D", style = MaterialTheme.typography.titleLarge)
+                            Text(text = "Mis ahorros", style = MaterialTheme.typography.titleLarge)
                             Text(
                                 text = "Cajita, LAFISE, préstamos otorgados y reservas",
                                 style = MaterialTheme.typography.labelSmall,

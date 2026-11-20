@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -79,60 +80,16 @@ fun DoraemonAvdCharacter(
     isAnimating: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val avdSpec = when (gesture) {
-        DoraemonGesture.SALUTE, DoraemonGesture.ADVISING -> Triple(
-            R.drawable.avd_doraemon_salute,
-            840L,
-            "Doraemon saludando"
-        )
-        DoraemonGesture.THINK -> Triple(
-            R.drawable.avd_doraemon_think,
-            1060L,
-            "Doraemon pensando"
-        )
-        DoraemonGesture.CELEBRATE, DoraemonGesture.ALERT -> Triple(
-            R.drawable.avd_doraemon_celebrate,
-            660L,
-            "Doraemon celebrando"
-        )
-    }
-
-    AnimatedContent(
-        targetState = avdSpec,
-        transitionSpec = {
-            (fadeIn(tween(220)) + scaleIn(
-                initialScale = 0.88f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
-            )) togetherWith (fadeOut(tween(170)) + scaleOut(targetScale = 0.90f))
-        },
-        label = "doraemon_avd_state_switch",
-        modifier = modifier
-    ) { (resId, loopDelayMs, description) ->
-        val animatedVector = AnimatedImageVector.animatedVectorResource(id = resId)
-        var atEnd by remember(resId) { mutableStateOf(false) }
-
-        LaunchedEffect(resId, isAnimating) {
-            if (isAnimating) {
-                atEnd = true
-                while (true) {
-                    delay(loopDelayMs)
-                    atEnd = !atEnd
-                }
-            } else {
-                atEnd = false
-            }
-        }
-
-        Image(
-            painter = rememberAnimatedVectorPainter(animatedVector, atEnd),
-            contentDescription = description,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
+    val tilt by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isAnimating && gesture == DoraemonGesture.THINK) -6f else 0f,
+        label = "Gesto de Doraemon"
+    )
+    Image(
+        painter = androidx.compose.ui.res.painterResource(R.drawable.img_doraemon_mascot),
+        contentDescription = "Doraemon",
+        contentScale = ContentScale.Fit,
+        modifier = modifier.rotate(tilt)
+    )
 }
 
 /**
@@ -229,7 +186,7 @@ fun DoraemonAssistant(
                                         isAlert || isError -> "Aviso importante"
                                         gesture == DoraemonGesture.CELEBRATE -> "¡Logro Dorayaki!"
                                         gesture == DoraemonGesture.THINK -> "Doraemon pensando…"
-                                        gesture == DoraemonGesture.SALUTE -> "¡Hola desde el Bolsillo 4D!"
+                                        gesture == DoraemonGesture.SALUTE -> "¡Hola desde el bolsillo!"
                                         else -> "Doraemon dice:"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
