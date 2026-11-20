@@ -4,9 +4,14 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
@@ -18,6 +23,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -80,15 +86,91 @@ fun DoraemonAvdCharacter(
     isAnimating: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val tilt by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isAnimating && gesture == DoraemonGesture.THINK) -6f else 0f,
-        label = "Gesto de Doraemon"
+    val transition = updateTransition(
+        targetState = gesture,
+        label = "doraemon_gesture_transition"
     )
+    val motionSpec = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMediumLow
+    )
+    val targetTilt by transition.animateFloat(
+        transitionSpec = { motionSpec },
+        label = "doraemon_tilt"
+    ) { state ->
+        when (state) {
+            DoraemonGesture.SALUTE -> 4f
+            DoraemonGesture.THINK -> -8f
+            DoraemonGesture.CELEBRATE -> 0f
+            DoraemonGesture.ALERT -> -3f
+            DoraemonGesture.ADVISING -> 2f
+        }
+    }
+    val targetScale by transition.animateFloat(
+        transitionSpec = { motionSpec },
+        label = "doraemon_scale"
+    ) { state ->
+        when (state) {
+            DoraemonGesture.CELEBRATE -> 1.07f
+            DoraemonGesture.SALUTE -> 1.03f
+            DoraemonGesture.ALERT -> 1.04f
+            DoraemonGesture.THINK -> 0.98f
+            DoraemonGesture.ADVISING -> 1.0f
+        }
+    }
+
+    val idleMotion = if (isAnimating) {
+        val infinite = rememberInfiniteTransition(label = "doraemon_idle")
+        infinite.animateFloat(
+            initialValue = -1f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = when (gesture) {
+                        DoraemonGesture.CELEBRATE -> 550
+                        DoraemonGesture.ALERT -> 480
+                        DoraemonGesture.SALUTE -> 900
+                        else -> 1300
+                    }
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "doraemon_bob"
+        ).value
+    } else {
+        0f
+    }
+
+    val cd = when (gesture) {
+        DoraemonGesture.SALUTE -> "Doraemon saludando"
+        DoraemonGesture.THINK -> "Doraemon pensando"
+        DoraemonGesture.CELEBRATE -> "Doraemon celebrando"
+        DoraemonGesture.ALERT -> "Doraemon en alerta"
+        DoraemonGesture.ADVISING -> "Doraemon aconsejando"
+    }
+
     Image(
         painter = androidx.compose.ui.res.painterResource(R.drawable.img_doraemon_mascot),
-        contentDescription = "Doraemon",
+        contentDescription = cd,
         contentScale = ContentScale.Fit,
-        modifier = modifier.rotate(tilt)
+        modifier = modifier.graphicsLayer {
+            val bobAmplitude = when (gesture) {
+                DoraemonGesture.CELEBRATE -> 8f
+                DoraemonGesture.SALUTE -> 4f
+                DoraemonGesture.ALERT -> 3f
+                else -> 2.5f
+            }
+            val waveRot = when (gesture) {
+                DoraemonGesture.SALUTE -> idleMotion * 4.5f
+                DoraemonGesture.ALERT -> idleMotion * 5.0f
+                DoraemonGesture.CELEBRATE -> idleMotion * 3.5f
+                else -> idleMotion * 1.5f
+            }
+            rotationZ = if (isAnimating) targetTilt + waveRot else 0f
+            translationY = if (isAnimating) -kotlin.math.abs(idleMotion) * bobAmplitude else 0f
+            scaleX = targetScale
+            scaleY = targetScale
+        }
     )
 }
 

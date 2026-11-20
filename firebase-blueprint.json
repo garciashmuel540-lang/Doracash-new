@@ -181,6 +181,26 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "latestVersionCode", "latestVersionName", "downloadUrl", "releaseNotes", "forceNotice", "createdAt", "updatedAt"]
+    },
+    "PendingTransaction": {
+      "title": "PendingTransaction",
+      "description": "Pending income, expense, or transfer awaiting user confirmation before impacting balances",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "txType": { "type": "string", "enum": ["INCOME", "EXPENSE", "TRANSFER"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["NIO", "USD"] },
+        "accountId": { "type": "string" },
+        "toAccountId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "note": { "type": "string" },
+        "dateIso": { "type": "string" },
+        "goalName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "txType", "amount", "currency", "accountId", "categoryId", "note", "dateIso", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -195,6 +215,10 @@
     "/users/{userId}/transactions/{transactionId}": {
       "schema": { "$ref": "#/entities/FinanceTransaction" },
       "description": "User income, expense, and transfer ledger"
+    },
+    "/users/{userId}/pendingTransactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/PendingTransaction" },
+      "description": "User pending payments, charges, or transfers waiting to be marked as done"
     },
     "/users/{userId}/scheduledBills/{billId}": {
       "schema": { "$ref": "#/entities/ScheduledBill" },

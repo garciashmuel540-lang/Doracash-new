@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.DenominationCatalog
 import com.example.data.DoracashSnapshot
@@ -213,12 +215,13 @@ fun ReconcileScreen(
                                 noteInput = ""
                             },
                             shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("reconcile_audit_only_button")
                         ) {
-                            Text("Solo Auditoría")
+                            Text("Solo Auditoría", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Button(
                             onClick = {
@@ -227,12 +230,13 @@ fun ReconcileScreen(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = DoraDeepBlue),
                             shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("reconcile_adjust_button")
                         ) {
-                            Text("Conciliar y Ajustar")
+                            Text("Conciliar y Ajustar", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -274,9 +278,9 @@ fun ReconcileScreen(
                                 onClick = { counts[denom] = (qty - 1).coerceAtLeast(0) },
                                 shape = RoundedCornerShape(12.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(Icons.Filled.Remove, contentDescription = "Restar billete", modifier = Modifier.padding(10.dp))
+                                Icon(Icons.Filled.Remove, contentDescription = "Restar billete", modifier = Modifier.padding(12.dp))
                             }
                             Text(
                                 text = qty.toString(),
@@ -288,13 +292,13 @@ fun ReconcileScreen(
                                 onClick = { counts[denom] = qty + 1 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = DoraSkyBlue,
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     Icons.Filled.Add,
                                     contentDescription = "Sumar billete",
                                     tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(10.dp)
+                                    modifier = Modifier.padding(12.dp)
                                 )
                             }
                         }

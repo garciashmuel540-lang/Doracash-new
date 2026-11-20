@@ -667,8 +667,16 @@ object FinanceUtils {
         }
     }
 
+    private val moneyFormatter = object : ThreadLocal<NumberFormat>() {
+        override fun initialValue(): NumberFormat =
+            NumberFormat.getNumberInstance(Locale.US).apply {
+                minimumFractionDigits = 2
+                maximumFractionDigits = 2
+            }
+    }
+
     fun formatMoney(amount: Double, currency: CurrencyCode): String {
-        val nf = NumberFormat.getNumberInstance(Locale.US).apply {
+        val nf = moneyFormatter.get() ?: NumberFormat.getNumberInstance(Locale.US).apply {
             minimumFractionDigits = 2
             maximumFractionDigits = 2
         }
@@ -677,6 +685,19 @@ object FinanceUtils {
     }
 
     fun round2(value: Double): Double = Math.round(value * 100.0) / 100.0
+
+    fun daysUntilPayday(reference: Calendar = Calendar.getInstance()): Int {
+        val day = reference.get(Calendar.DAY_OF_MONTH)
+        val targetDay = if (day <= 15) 15 else reference.getActualMaximum(Calendar.DAY_OF_MONTH)
+        return (targetDay - day).coerceAtLeast(0)
+    }
+
+    fun paydayBannerText(reference: Calendar = Calendar.getInstance()): String =
+        when (val days = daysUntilPayday(reference)) {
+            0 -> "Hoy es quincena"
+            1 -> "Falta 1 día para la quincena"
+            else -> "Faltan $days días para la quincena"
+        }
 
     fun billStatus(bill: ScheduledBill, occurrenceIso: String): BillStatus {
         if (bill.paidDates.contains(occurrenceIso)) return BillStatus.PAID

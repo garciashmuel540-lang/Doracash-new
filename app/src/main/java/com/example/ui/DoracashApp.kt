@@ -1,7 +1,12 @@
 package com.example.ui
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -9,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -28,17 +34,21 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -49,6 +59,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -68,6 +79,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -75,6 +88,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.BuildConfig
 import com.example.R
 import com.example.auth.AuthScreen
 import com.example.auth.signOutUser
@@ -126,6 +140,7 @@ import com.example.wallet.DetectedCardMetadata
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.UUID
 
 enum class DoracashTab(val route: String, val label: String, val icon: ImageVector) {
     DASHBOARD("dashboard", "Inicio", Icons.Filled.Home),
@@ -180,6 +195,18 @@ private fun AuthenticatedDoracashShell(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
+    val appPrefs = remember(context) {
+        context.applicationContext.getSharedPreferences("doracash_prefs", Context.MODE_PRIVATE)
+    }
+    val deviceId = remember(appPrefs) {
+        appPrefs.getString("doracash_device_id", null)?.takeIf { it.isNotBlank() }
+            ?: UUID.randomUUID().toString().also { generated ->
+                appPrefs.edit().putString("doracash_device_id", generated).apply()
+            }
+    }
+    val deviceName = remember {
+        "${Build.MANUFACTURER} ${Build.MODEL}".trim().ifBlank { "Android" }.take(64)
+    }
 
     val viewModel: DoracashViewModel = viewModel(
         key = currentUserId,
@@ -188,12 +215,15 @@ private fun AuthenticatedDoracashShell(
                 val app = checkNotNull(this[APPLICATION_KEY])
                 val databaseId = app.getString(R.string.firestore_database_id)
                 val db = FirebaseFirestore.getInstance(databaseId)
-                val prefs = app.getSharedPreferences("doracash_prefs", Context.MODE_PRIVATE)
                 DoracashViewModel(
                     repository = DoracashRepository(db),
                     currentUserId = currentUserId,
                     displayName = userDisplayName,
-                    prefs = prefs
+                    prefs = appPrefs,
+                    currentDeviceId = deviceId,
+                    currentDeviceName = deviceName,
+                    currentVersionName = BuildConfig.VERSION_NAME,
+                    currentVersionCode = BuildConfig.VERSION_CODE
                 )
             }
         }
@@ -282,12 +312,16 @@ private fun AuthenticatedDoracashShell(
                                 Text(
                                     text = if (currentTab == DoracashTab.DASHBOARD) "Doracash" else currentTab.label,
                                     style = MaterialTheme.typography.headlineMedium,
-                                    color = DoraSkyBlue
+                                    color = DoraSkyBlue,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "Tu bolsillo al instante",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         },
@@ -298,14 +332,14 @@ private fun AuthenticatedDoracashShell(
                                     shape = RoundedCornerShape(14.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer,
                                     modifier = Modifier
-                                        .padding(end = 6.dp)
+                                        .padding(end = 4.dp)
                                         .testTag("currency_toggle_button")
                                 ) {
                                     Text(
                                         text = snapshot.profile.displayCurrency,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
                                     )
                                 }
                             }
@@ -313,7 +347,7 @@ private fun AuthenticatedDoracashShell(
                                 alertCount = alertCount,
                                 onClick = { currentTab = DoracashTab.CALENDAR },
                                 modifier = Modifier
-                                    .padding(end = 6.dp)
+                                    .padding(end = 4.dp)
                                     .testTag("bell_alerts_button")
                             )
                             // Trigger mechanism to show/hide the DoraemonAssistant overlay on the main screen
@@ -337,7 +371,7 @@ private fun AuthenticatedDoracashShell(
                                     MaterialTheme.colorScheme.surfaceVariant
                                 },
                                 modifier = Modifier
-                                    .padding(end = 6.dp)
+                                    .padding(end = 4.dp)
                                     .size(48.dp)
                                     .testTag("doraemon_toggle_button")
                             ) {
@@ -369,7 +403,7 @@ private fun AuthenticatedDoracashShell(
                                     shape = RoundedCornerShape(14.dp),
                                     color = DoraSkyBlue.copy(alpha = 0.14f),
                                     modifier = Modifier
-                                        .padding(end = 8.dp)
+                                        .padding(end = 6.dp)
                                         .size(48.dp)
                                         .testTag("doraemon_chat_button")
                                 ) {
@@ -491,110 +525,219 @@ private fun AuthenticatedDoracashShell(
                             }
                             is UiState.Success -> {
                                 val data = state.data
-                                val contentModifier = Modifier
-                                    .widthIn(max = 760.dp)
-                                    .fillMaxWidth()
+                                val relInfo = data.releaseInfo
+                                var dismissedUpdateVersion by rememberSaveable { mutableStateOf<Int?>(null) }
+                                val showUpdateBanner = relInfo != null &&
+                                    (relInfo.latestVersionCode > BuildConfig.VERSION_CODE ||
+                                        (relInfo.forceNotice && relInfo.downloadUrl.startsWith("https://"))) &&
+                                    dismissedUpdateVersion != relInfo.latestVersionCode
 
-                                when (currentTab) {
-                                    DoracashTab.DASHBOARD -> DashboardScreen(
-                                        snapshot = data,
-                                        onEdit = viewModel::editTransaction,
-                                        onSettle = { viewModel.settlePending(it, data.profile.exchangeRate) },
-                                        onOpenTxModal = { txModalType = it },
-                                        onNavigateTab = { currentTab = DoracashTab.fromRoute(it) },
-                                        onPayBill = { occ ->
-                                            val acc = data.accounts.firstOrNull { it.id == occ.bill.accountId }
-                                            viewModel.payScheduledBill(
-                                                occ.bill,
-                                                occ.dateIso,
-                                                acc,
-                                                data.profile.exchangeRate,
-                                                data.goals
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    if (showUpdateBanner && relInfo != null) {
+                                        Surface(
+                                            color = DoraSkyBlue.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(18.dp),
+                                            modifier = Modifier
+                                                .widthIn(max = 760.dp)
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                                .testTag("app_update_banner")
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.padding(12.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.SystemUpdate,
+                                                    contentDescription = null,
+                                                    tint = DoraSkyBlue,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Actualización disponible v${relInfo.latestVersionName}",
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        color = DoraSkyBlue,
+                                                        fontWeight = FontWeight.ExtraBold
+                                                    )
+                                                    if (relInfo.releaseNotes.isNotBlank()) {
+                                                        Text(
+                                                            text = relInfo.releaseNotes,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                                if (relInfo.downloadUrl.startsWith("https://")) {
+                                                    Button(
+                                                        onClick = {
+                                                            runCatching {
+                                                                context.startActivity(
+                                                                    Intent(Intent.ACTION_VIEW, Uri.parse(relInfo.downloadUrl))
+                                                                )
+                                                            }
+                                                        },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = DoraSkyBlue,
+                                                            contentColor = Color.White
+                                                        )
+                                                    ) {
+                                                        Text("Descargar", maxLines = 1)
+                                                    }
+                                                }
+                                                IconButton(
+                                                    onClick = { dismissedUpdateVersion = relInfo.latestVersionCode },
+                                                    modifier = Modifier.size(48.dp)
+                                                ) {
+                                                    Icon(Icons.Filled.Close, contentDescription = "Ocultar aviso de actualización")
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    val contentModifier = Modifier
+                                        .widthIn(max = 760.dp)
+                                        .fillMaxWidth()
+                                        .weight(1f)
+
+                                    Crossfade(
+                                        targetState = currentTab,
+                                        animationSpec = tween(durationMillis = 150),
+                                        label = "tab_crossfade",
+                                        modifier = contentModifier
+                                    ) { tab ->
+                                        when (tab) {
+                                            DoracashTab.DASHBOARD -> DashboardScreen(
+                                                snapshot = data,
+                                                onEdit = { tx, note, date, amt ->
+                                                    viewModel.editTransaction(tx, note, date, amt, data.profile.exchangeRate)
+                                                },
+                                                onEditPending = { tx, note, date, amt ->
+                                                    viewModel.editPending(tx, note, date, amt)
+                                                },
+                                                onDeletePending = { id -> viewModel.deletePending(id) },
+                                                onSettle = { viewModel.settlePending(it, data.profile.exchangeRate) },
+                                                onOpenTxModal = { txModalType = it },
+                                                onNavigateTab = { currentTab = DoracashTab.fromRoute(it) },
+                                                onPayBill = { occ ->
+                                                    val acc = data.accounts.firstOrNull { it.id == occ.bill.accountId }
+                                                    viewModel.payScheduledBill(
+                                                        occ.bill,
+                                                        occ.dateIso,
+                                                        acc,
+                                                        data.profile.exchangeRate,
+                                                        data.goals
+                                                    )
+                                                },
+                                                onLoadDemo = { viewModel.loadDemoData() },
+                                                modifier = Modifier.fillMaxSize()
                                             )
-                                        },
-                                        onLoadDemo = { viewModel.loadDemoData() },
-                                        modifier = contentModifier
-                                    )
-                                    DoracashTab.TRANSACTIONS -> TransactionsScreen(
-                                        snapshot = data,
-                                        onDeleteTx = { tx ->
-                                            viewModel.deleteTransaction(
-                                                tx,
-                                                data.accounts,
-                                                data.profile.exchangeRate,
-                                                data.goals
+                                            DoracashTab.TRANSACTIONS -> TransactionsScreen(
+                                                snapshot = data,
+                                                onEditTx = { tx, note, date, amt ->
+                                                    viewModel.editTransaction(tx, note, date, amt, data.profile.exchangeRate)
+                                                },
+                                                onDeleteTx = { tx ->
+                                                    viewModel.deleteTransaction(
+                                                        tx,
+                                                        data.accounts,
+                                                        data.profile.exchangeRate,
+                                                        data.goals
+                                                    )
+                                                },
+                                                onSettlePending = { id -> viewModel.settlePending(id, data.profile.exchangeRate) },
+                                                onEditPending = { tx, note, date, amt ->
+                                                    viewModel.editPending(tx, note, date, amt)
+                                                },
+                                                onDeletePending = { id -> viewModel.deletePending(id) },
+                                                modifier = Modifier.fillMaxSize()
                                             )
-                                        },
-                                        modifier = contentModifier
-                                    )
-                                    DoracashTab.CARDS -> CardsWalletScreen(
-                                        snapshot = data,
-                                        onOpenNewCard = { cardModalTarget = Triple(true, null, null) },
-                                        onImportDetectedCard = { detected ->
-                                            val dup = CardDetector.isDuplicateCard(data.cards, detected)
-                                            cardModalTarget = Triple(true, dup, detected)
-                                        },
-                                        onOpenEditCard = { cardModalTarget = Triple(true, it, null) },
-                                        onOpenChargeCard = { chargeCardTarget = it },
-                                        onOpenPayCard = { payCardTarget = it },
-                                        onToggleFrozen = { viewModel.toggleCardFrozen(it) },
-                                        onToggleAutoDebit = { viewModel.toggleCardAutoDebit(it) },
-                                        onToggleWalletLink = { viewModel.toggleCardWalletLink(it) },
-                                        onDeleteCard = { viewModel.deleteCard(it.id) },
-                                        onFeedback = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
-                                        modifier = contentModifier
-                                    )
-                                    DoracashTab.RECONCILE -> ReconcileScreen(
-                                        snapshot = data,
-                                        onSaveReconciliation = { acc, counted, adjust, note ->
-                                            viewModel.saveReconciliation(acc, counted, adjust, note)
-                                        },
-                                        modifier = contentModifier
-                                    )
-                                    DoracashTab.CALENDAR -> CalendarScreen(
-                                        snapshot = data,
-                                        onPayBill = { occ ->
-                                            val acc = data.accounts.firstOrNull { it.id == occ.bill.accountId }
-                                            viewModel.payScheduledBill(
-                                                occ.bill,
-                                                occ.dateIso,
-                                                acc,
-                                                data.profile.exchangeRate,
-                                                data.goals
+                                            DoracashTab.CARDS -> CardsWalletScreen(
+                                                snapshot = data,
+                                                onOpenNewCard = { cardModalTarget = Triple(true, null, null) },
+                                                onImportDetectedCard = { detected ->
+                                                    val dup = CardDetector.isDuplicateCard(data.cards, detected)
+                                                    cardModalTarget = Triple(true, dup, detected)
+                                                },
+                                                onOpenEditCard = { cardModalTarget = Triple(true, it, null) },
+                                                onOpenChargeCard = { chargeCardTarget = it },
+                                                onOpenPayCard = { payCardTarget = it },
+                                                onToggleFrozen = { viewModel.toggleCardFrozen(it) },
+                                                onToggleAutoDebit = { viewModel.toggleCardAutoDebit(it) },
+                                                onToggleWalletLink = { viewModel.toggleCardWalletLink(it) },
+                                                onDeleteCard = { viewModel.deleteCard(it.id) },
+                                                onFeedback = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                                                modifier = Modifier.fillMaxSize()
                                             )
-                                        },
-                                        onDeleteBill = { viewModel.deleteScheduledBill(it) },
-                                        onOpenNewBillModal = { billModalDate = it },
-                                        modifier = contentModifier
-                                    )
-                                    DoracashTab.GOALS -> GoalsBudgetsScreen(
-                                        snapshot = data,
-                                        onOpenNewBudget = { showBudgetModal = true },
-                                        onDeleteBudget = { viewModel.deleteBudget(it.id) },
-                                        onOpenNewGoal = { showGoalModal = true },
-                                        onOpenDepositGoal = { depositGoalTarget = it },
-                                        onOpenRecoverGoal = { recoverGoalTarget = it },
-                                        onDeleteGoal = { viewModel.deleteGoal(it.id) },
-                                        modifier = contentModifier
-                                    )
-                                    DoracashTab.SETTINGS -> SettingsScreen(
-                                        snapshot = data,
-                                        userEmail = userEmail,
-                                        doraemonEnabled = doraemonEnabled,
-                                        onToggleDoraemon = { enable ->
-                                            viewModel.setDoraemonEnabled(enable, data)
-                                            isDoraemonOverlayVisible = enable
-                                            overlayGestureOverride = if (enable) DoraemonGesture.SALUTE else null
-                                        },
-                                        onOpenDoraemonChat = { showDoraemonSheet = true },
-                                        onOpenAccountModal = { accountModalTarget = true to it },
-                                        onDeleteAccount = { viewModel.deleteAccount(it.id) },
-                                        onUpdateSettings = { c, r, t -> viewModel.updateSettings(c, r, t) },
-                                        onLoadDemoData = { viewModel.loadDemoData() },
-                                        onClearAllData = { viewModel.clearAllData() },
-                                        onSignOut = { signOutUser(credentialManager, scope) },
-                                        modifier = contentModifier
-                                    )
+                                            DoracashTab.RECONCILE -> ReconcileScreen(
+                                                snapshot = data,
+                                                onSaveReconciliation = { acc, counted, adjust, note ->
+                                                    viewModel.saveReconciliation(acc, counted, adjust, note)
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            DoracashTab.CALENDAR -> CalendarScreen(
+                                                snapshot = data,
+                                                onPayBill = { occ ->
+                                                    val acc = data.accounts.firstOrNull { it.id == occ.bill.accountId }
+                                                    viewModel.payScheduledBill(
+                                                        occ.bill,
+                                                        occ.dateIso,
+                                                        acc,
+                                                        data.profile.exchangeRate,
+                                                        data.goals
+                                                    )
+                                                },
+                                                onDeleteBill = { viewModel.deleteScheduledBill(it) },
+                                                onOpenNewBillModal = { billModalDate = it },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            DoracashTab.GOALS -> GoalsBudgetsScreen(
+                                                snapshot = data,
+                                                onOpenNewBudget = { showBudgetModal = true },
+                                                onDeleteBudget = { viewModel.deleteBudget(it.id) },
+                                                onOpenNewGoal = { showGoalModal = true },
+                                                onOpenDepositGoal = { depositGoalTarget = it },
+                                                onOpenRecoverGoal = { recoverGoalTarget = it },
+                                                onDeleteGoal = { viewModel.deleteGoal(it.id) },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            DoracashTab.SETTINGS -> SettingsScreen(
+                                                snapshot = data,
+                                                userEmail = userEmail,
+                                                doraemonEnabled = doraemonEnabled,
+                                                currentDeviceId = deviceId,
+                                                currentVersionName = BuildConfig.VERSION_NAME,
+                                                currentVersionCode = BuildConfig.VERSION_CODE,
+                                                onToggleDoraemon = { enable ->
+                                                    viewModel.setDoraemonEnabled(enable, data)
+                                                    isDoraemonOverlayVisible = enable
+                                                    overlayGestureOverride = if (enable) DoraemonGesture.SALUTE else null
+                                                },
+                                                onOpenDoraemonChat = { showDoraemonSheet = true },
+                                                onOpenAccountModal = { accountModalTarget = true to it },
+                                                onDeleteAccount = { viewModel.deleteAccount(it.id) },
+                                                onUpdateSettings = { c, r, t -> viewModel.updateSettings(c, r, t) },
+                                                onPublishUpdateChannel = { verCode, verName, url, notes, force ->
+                                                    viewModel.publishAppUpdateChannel(verCode, verName, url, notes, force)
+                                                },
+                                                onRemoveDevice = { devId -> viewModel.removeSyncedDevice(devId) },
+                                                onLoadDemoData = { viewModel.loadDemoData() },
+                                                onClearAllData = { viewModel.clearAllData() },
+                                                onSignOut = { signOutUser(credentialManager, scope) },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -628,7 +771,7 @@ private fun AuthenticatedDoracashShell(
                                 },
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(start = 12.dp, bottom = 10.dp)
+                                    .padding(start = 12.dp, end = 88.dp, bottom = 10.dp)
                             )
                         }
                     }

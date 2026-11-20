@@ -532,9 +532,10 @@ fun CardsWalletScreen(
                             }
                         }
 
-                        Row(
+                        androidx.compose.foundation.layout.FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             OutlinedTextField(
                                 value = simIncomeText,
@@ -543,13 +544,13 @@ fun CardsWalletScreen(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.fillMaxWidth()
                             )
                             CurrencyCode.entries.forEach { c ->
                                 FilterChip(
                                     selected = simCurrency == c,
                                     onClick = { simCurrency = c },
-                                    label = { Text(c.name) }
+                                    label = { Text(c.name, maxLines = 1) }
                                 )
                             }
                         }
@@ -956,20 +957,21 @@ private fun BankCardDeckItem(
                 // Action Buttons Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledTonalButton(
                         onClick = onCharge,
                         enabled = !card.cardFrozen,
                         shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Filled.ShoppingBag, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Cargo", maxLines = 1)
+                        Icon(Icons.Filled.ShoppingBag, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Cargo", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
 
                     if (card.cardKindEnum != CardKind.DEBIT) {
@@ -978,13 +980,14 @@ private fun BankCardDeckItem(
                             enabled = card.debtBalance > 0.0,
                             colors = ButtonDefaults.buttonColors(containerColor = DoraMintGreen, contentColor = Color.White),
                             shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp)
                         ) {
-                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Pagar", maxLines = 1)
+                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Pagar", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
 

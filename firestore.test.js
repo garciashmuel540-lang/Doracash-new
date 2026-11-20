@@ -380,14 +380,45 @@ test("Accounts, Transactions, ScheduledBills, Budgets, Goals, Reconciliations: K
     })
   );
 
+  // Pending Transactions (create with optional goalName, edit note/amount/date, settle/delete, Bob denial)
+  await assertSucceeds(
+    aliceRef.collection("pendingTransactions").doc("pend_1").set({
+      userId: ALICE_UID,
+      txType: "EXPENSE",
+      amount: 1200,
+      currency: "NIO",
+      accountId: "acc_cash",
+      categoryId: "ahorro_cajita",
+      note: "Apartar para cajita",
+      dateIso: "2026-11-20",
+      goalName: "Cajita Vacaciones",
+      createdAt: created,
+      updatedAt: created,
+    })
+  );
+  await assertSucceeds(
+    aliceRef.collection("pendingTransactions").doc("pend_1").update({
+      amount: 1500,
+      note: "Apartar para cajita editado",
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+  await assertSucceeds(aliceRef.collection("pendingTransactions").doc("pend_1").delete());
+
   // Empty & populated list queries work for owner, fail for Bob
   await assertSucceeds(aliceRef.collection("accounts").get());
   await assertSucceeds(aliceRef.collection("transactions").get());
+  await assertSucceeds(aliceRef.collection("pendingTransactions").get());
+  await assertSucceeds(aliceRef.collection("budgets").get());
+  await assertSucceeds(aliceRef.collection("goals").get());
   await assertSucceeds(aliceRef.collection("cards").get());
   await assertSucceeds(aliceRef.collection("devices").get());
   await assertSucceeds(aliceRef.collection("appMeta").doc("release").get());
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("accounts").get());
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("transactions").get());
+  await assertFails(bob.collection("users").doc(ALICE_UID).collection("pendingTransactions").get());
+  await assertFails(bob.collection("users").doc(ALICE_UID).collection("budgets").get());
+  await assertFails(bob.collection("users").doc(ALICE_UID).collection("goals").get());
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("scheduledBills").get());
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("reconciliations").get());
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("cards").get());

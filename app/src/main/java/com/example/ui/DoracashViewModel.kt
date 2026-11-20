@@ -924,10 +924,35 @@ class DoracashViewModel(
         repository.removeSyncedDevice(deviceId)
     }
 
-    fun savePending(tx: FinanceTransaction, goalName: String?) = launchAction("Movimiento pendiente guardado") { repository.savePending(tx, goalName) }
-    fun settlePending(id: String, rate: Double) = launchAction("Movimiento realizado") { repository.settlePending(id, rate) }
-    fun editTransaction(tx: FinanceTransaction, note: String, date: String) = launchAction("Movimiento actualizado") {
-        repository.editTransaction(tx, note, date)
+    fun savePending(tx: FinanceTransaction, goalName: String?) = launchAction("Movimiento pendiente guardado") {
+        repository.savePending(tx, goalName)
+    }
+
+    fun settlePending(id: String, rate: Double) = launchAction("Movimiento marcado como realizado") {
+        repository.settlePending(id, rate)
+    }
+
+    fun editPending(
+        tx: FinanceTransaction,
+        note: String,
+        date: String,
+        newAmount: Double? = null
+    ) = launchAction("Movimiento pendiente actualizado") {
+        repository.editPending(tx, note, date, newAmount)
+    }
+
+    fun deletePending(id: String) = launchAction("Movimiento pendiente eliminado") {
+        repository.deletePending(id)
+    }
+
+    fun editTransaction(
+        tx: FinanceTransaction,
+        note: String,
+        date: String,
+        newAmount: Double? = null,
+        exchangeRate: Double = 36.62
+    ) = launchAction("Movimiento actualizado") {
+        repository.editTransaction(tx, note, date, newAmount, exchangeRate)
     }
 
     fun loadDemoData() = launchAction("Datos de demostración cargados") {

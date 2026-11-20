@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.BillOccurrence
 import com.example.data.BillStatus
@@ -115,23 +117,30 @@ fun CalendarScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f).padding(end = 6.dp)
+                        ) {
                             IconButton(
                                 onClick = {
                                     if (month == 0) { month = 11; year-- } else month--
-                                }
+                                },
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes anterior")
                             }
                             Text(
                                 text = "$monthName $year",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.padding(horizontal = 4.dp)
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f).padding(horizontal = 2.dp)
                             )
                             IconButton(
                                 onClick = {
                                     if (month == 11) { month = 0; year++ } else month++
-                                }
+                                },
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes siguiente")
                             }
@@ -140,12 +149,14 @@ fun CalendarScreen(
                         Button(
                             onClick = { onOpenNewBillModal(selectedDateIso) },
                             shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            modifier = Modifier.testTag("add_bill_button")
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("add_bill_button")
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Programar", style = MaterialTheme.typography.labelLarge)
+                            Text("Programar", style = MaterialTheme.typography.labelLarge, maxLines = 1)
                         }
                     }
 
@@ -386,14 +397,17 @@ private fun BillOccurrenceCard(
                         Button(
                             onClick = { onPayBill(occ) },
                             shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(38.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.heightIn(min = 48.dp)
                         ) {
-                            Text("Pagar ahora", style = MaterialTheme.typography.labelLarge)
+                            Text("Pagar ahora", style = MaterialTheme.typography.labelLarge, maxLines = 1)
                         }
                         Spacer(modifier = Modifier.width(6.dp))
                     }
-                    IconButton(onClick = { onDeleteBill(occ.bill.id) }) {
+                    IconButton(
+                        onClick = { onDeleteBill(occ.bill.id) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.DeleteOutline,
                             contentDescription = "Eliminar pago programado",

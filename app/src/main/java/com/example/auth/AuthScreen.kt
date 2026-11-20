@@ -132,7 +132,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                             .padding(14.dp)
                     ) {
                         Text(
-                            text = "BOLSILLO 4D",
+                            text = "TU BOLSILLO AL INSTANTE",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,

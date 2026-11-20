@@ -195,10 +195,11 @@ service cloud.firestore {
                          isValidTimestamp(incoming().updatedAt);
         allow update: if isOwner(userId) && isValidId(transactionId) &&
                          isValidTransaction(incoming()) &&
+                         (!('goalName' in incoming()) || (incoming().goalName is string && incoming().goalName.size() <= 80)) &&
                          incoming().userId == existing().userId &&
                          incoming().createdAt == existing().createdAt &&
                          isValidTimestamp(incoming().updatedAt) &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly(['txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'goalName', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(transactionId);
       }
 

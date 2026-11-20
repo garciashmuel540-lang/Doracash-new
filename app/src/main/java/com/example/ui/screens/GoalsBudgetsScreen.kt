@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -124,11 +125,13 @@ fun GoalsBudgetsScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = DoraDorayakiAmber, contentColor = Color.White),
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            modifier = Modifier.testTag("add_goal_button")
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("add_goal_button")
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Ahorro", style = MaterialTheme.typography.labelLarge)
+                            Text("Ahorro", style = MaterialTheme.typography.labelLarge, maxLines = 1)
                         }
                     }
 
@@ -330,31 +333,35 @@ fun GoalsBudgetsScreen(
                                             onClick = { onOpenDepositGoal(goal) },
                                             colors = ButtonDefaults.buttonColors(containerColor = st.color),
                                             shape = RoundedCornerShape(12.dp),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(40.dp)
+                                                .heightIn(min = 48.dp)
                                                 .testTag("deposit_goal_${goal.id}")
                                         ) {
                                             Text(
                                                 text = if (st == SavingsType.PRESTAMO) "+ Prestar" else "+ Abonar",
                                                 style = MaterialTheme.typography.labelLarge,
-                                                color = Color.White
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                         if (goal.currentNio > 0.0) {
                                             OutlinedButton(
                                                 onClick = { onOpenRecoverGoal(goal) },
                                                 shape = RoundedCornerShape(12.dp),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .height(40.dp)
+                                                    .heightIn(min = 48.dp)
                                                     .testTag("recover_goal_${goal.id}")
                                             ) {
                                                 Text(
                                                     text = if (st == SavingsType.PRESTAMO) "Recuperar" else "Retirar",
-                                                    style = MaterialTheme.typography.labelLarge
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }

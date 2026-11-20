@@ -125,6 +125,14 @@ class DoracashRepository(
             }
             .wrapStreamError(userId, "users/$userId/appMeta/release")
 
+        val pendingFlow = userDoc(userId).collection("pendingTransactions")
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObjects(FinanceTransaction::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    .sortedByDescending { it.dateIso }
+            }
+            .wrapStreamError(userId, "users/$userId/pendingTransactions")
+
         return combine(
             listOf(
                 profileFlow,
@@ -137,9 +145,7 @@ class DoracashRepository(
                 cardsFlow,
                 devicesFlow,
                 releaseFlow,
-                userDoc(userId).collection("pendingTransactions").snapshots().map { snapshot ->
-                    snapshot.toObjects(FinanceTransaction::class.java).sortedBy { it.dateIso }
-                }
+                pendingFlow
             )
         ) { values ->
             @Suppress("UNCHECKED_CAST")
@@ -435,51 +441,199 @@ class DoracashRepository(
     }
 
     suspend fun settlePending(id: String, rate: Double): Result<Unit> = safeWrite("pendingTransactions/$id", OperationType.UPDATE) {
-        val user = userDoc(requireUserId())
+        val uid = requireUserId()
+        val user = userDoc(uid)
         val draft = user.collection("pendingTransactions").document(id)
         db.runTransaction { transaction ->
             val record = transaction.get(draft)
             val tx = record.toObject(FinanceTransaction::class.java)
                 ?: return@runTransaction
             val source = user.collection("accounts").document(tx.accountId)
-            val account = requireNotNull(transaction.get(source).toObject(WalletAccount::class.java)) { "La cuenta de origen ya no existe." }
+            val account = requireNotNull(transaction.get(source).toObject(WalletAccount::class.java)) {
+                "La cuenta de origen ya no existe."
+            }
             require(account.currency == tx.currency) { "La moneda de la cuenta cambió." }
-            var category = tx.categoryId
-            if (tx.typeEnum != TxType.TRANSFER && CategoryCatalog.classificationOf(category) == EntryClassification.SAVINGS) {
-                val kind = CategoryCatalog.savingsTypeOf(category) ?: SavingsType.OTRO
-                val goals = user.collection("goals")
-                val linked = CategoryCatalog.linkedGoalId(category)
-                val goalRef = if (linked == null) goals.document() else goals.document(linked)
-                val value = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, CurrencyCode.NIO, rate)
-                if (linked != null) {
-                    val goal = requireNotNull(transaction.get(goalRef).toObject(SavingsGoal::class.java)) { "La meta vinculada ya no existe." }
-                    transaction.update(goalRef, "currentNio", FinanceUtils.round2(goal.currentNio + value), "updatedAt", FieldValue.serverTimestamp())
-                } else {
-                    transaction.set(goalRef, SavingsGoal(userId = tx.userId, name = record.getString("goalName") ?: kind.label,
-                        targetNio = 1.0, currentNio = FinanceUtils.round2(value), iconKey = kind.key).toCreateMap())
+
+            val isTransfer = tx.typeEnum == TxType.TRANSFER
+            val destId = tx.toAccountId?.takeIf { it.isNotBlank() }
+            val destRef = if (isTransfer) {
+                val cleanDest = requireNotNull(destId) { "Falta la cuenta destino." }
+                require(cleanDest != tx.accountId) { "La cuenta destino debe ser distinta a la cuenta origen." }
+                user.collection("accounts").document(cleanDest)
+            } else null
+            val targetAcc = destRef?.let { ref ->
+                requireNotNull(transaction.get(ref).toObject(WalletAccount::class.java)) {
+                    "La cuenta destino ya no existe."
                 }
-                category = CategoryCatalog.buildSavingsCategoryId(kind, goalRef.id)
             }
-            if (tx.typeEnum == TxType.TRANSFER) {
-                val dest = user.collection("accounts").document(requireNotNull(tx.toAccountId))
-                require(dest != source)
-                val target = requireNotNull(transaction.get(dest).toObject(WalletAccount::class.java))
-                val converted = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, target.currencyCode, rate)
-                transaction.update(dest, "balance", FinanceUtils.round2(target.balance + converted), "updatedAt", FieldValue.serverTimestamp())
+
+            var category = tx.categoryId
+            val isSavings = !isTransfer && CategoryCatalog.classificationOf(category) == EntryClassification.SAVINGS
+            val linkedGoalId = if (isSavings) CategoryCatalog.linkedGoalId(category) else null
+            val existingGoalRef = linkedGoalId?.let { user.collection("goals").document(it) }
+            val existingGoal = existingGoalRef?.let { ref ->
+                requireNotNull(transaction.get(ref).toObject(SavingsGoal::class.java)) {
+                    "La meta o apartado vinculado ya no existe."
+                }
             }
+
+            if (isSavings) {
+                val kind = CategoryCatalog.savingsTypeOf(category) ?: SavingsType.OTRO
+                val goalsCol = user.collection("goals")
+                val value = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, CurrencyCode.NIO, rate)
+                val goalId = if (existingGoalRef != null && existingGoal != null) {
+                    transaction.update(
+                        existingGoalRef,
+                        mapOf(
+                            "currentNio" to FinanceUtils.round2(existingGoal.currentNio + value),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    existingGoalRef.id
+                } else {
+                    val newGoalRef = goalsCol.document()
+                    val goalTitle = record.getString("goalName")?.takeIf { it.isNotBlank() } ?: kind.label
+                    transaction.set(
+                        newGoalRef,
+                        SavingsGoal(
+                            userId = uid,
+                            name = goalTitle,
+                            targetNio = 1.0,
+                            currentNio = FinanceUtils.round2(value),
+                            iconKey = kind.key
+                        ).toCreateMap()
+                    )
+                    newGoalRef.id
+                }
+                category = CategoryCatalog.buildSavingsCategoryId(kind, goalId)
+            }
+
+            if (destRef != null && targetAcc != null) {
+                val converted = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, targetAcc.currencyCode, rate)
+                transaction.update(
+                    destRef,
+                    mapOf(
+                        "balance" to FinanceUtils.round2(targetAcc.balance + converted),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }
+
             val delta = if (tx.typeEnum == TxType.INCOME) tx.amount else -tx.amount
-            transaction.update(source, "balance", FinanceUtils.round2(account.balance + delta), "updatedAt", FieldValue.serverTimestamp())
-            transaction.set(user.collection("transactions").document(id), tx.copy(categoryId = category).toCreateMap())
+            transaction.update(
+                source,
+                mapOf(
+                    "balance" to FinanceUtils.round2(account.balance + delta),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            transaction.set(
+                user.collection("transactions").document(id),
+                tx.copy(userId = uid, categoryId = category).toCreateMap()
+            )
             transaction.delete(draft)
         }.await()
         Unit
     }
 
-    suspend fun editTransaction(tx: FinanceTransaction, note: String, date: String): Result<Unit> =
-        safeWrite("transactions/${tx.id}", OperationType.UPDATE) {
-            userDoc(requireUserId()).collection("transactions").document(tx.id)
-                .update("note", note.trim().take(160), "dateIso", date, "updatedAt", FieldValue.serverTimestamp()).await()
+    suspend fun editPending(
+        tx: FinanceTransaction,
+        note: String,
+        date: String,
+        newAmount: Double? = null
+    ): Result<Unit> = safeWrite("pendingTransactions/${tx.id}", OperationType.UPDATE) {
+        val uid = requireUserId()
+        require(date.length == 10) { "Fecha inválida." }
+        val amt = FinanceUtils.round2(newAmount ?: tx.amount)
+        require(amt > 0.0) { "El monto debe ser mayor a cero." }
+        userDoc(uid).collection("pendingTransactions").document(tx.id)
+            .update(
+                mapOf(
+                    "amount" to amt,
+                    "note" to note.trim().take(160),
+                    "dateIso" to date,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+    }
+
+    suspend fun deletePending(id: String): Result<Unit> =
+        safeWrite("pendingTransactions/$id", OperationType.DELETE) {
+            val uid = requireUserId()
+            require(id.isNotBlank())
+            userDoc(uid).collection("pendingTransactions").document(id).delete().await()
         }
+
+    suspend fun editTransaction(
+        tx: FinanceTransaction,
+        note: String,
+        date: String,
+        newAmount: Double? = null,
+        exchangeRate: Double = 36.62
+    ): Result<Unit> = safeWrite("transactions/${tx.id}", OperationType.UPDATE) {
+        val uid = requireUserId()
+        require(date.length == 10) { "Fecha inválida." }
+        val cleanNote = note.trim().take(160)
+        val cleanAmt = FinanceUtils.round2(newAmount ?: tx.amount)
+        require(cleanAmt > 0.0) { "El monto debe ser mayor a cero." }
+
+        val amountChanged = kotlin.math.abs(cleanAmt - tx.amount) >= 0.01
+        if (!amountChanged || tx.typeEnum == TxType.TRANSFER) {
+            userDoc(uid).collection("transactions").document(tx.id)
+                .update(
+                    mapOf(
+                        "note" to cleanNote,
+                        "dateIso" to date,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+        } else {
+            val txRef = userDoc(uid).collection("transactions").document(tx.id)
+            val accRef = userDoc(uid).collection("accounts").document(tx.accountId)
+            val linkedGoalId = if (CategoryCatalog.classificationOf(tx.categoryId) == EntryClassification.SAVINGS) {
+                CategoryCatalog.linkedGoalId(tx.categoryId)
+            } else null
+            val goalRef = linkedGoalId?.let { userDoc(uid).collection("goals").document(it) }
+
+            db.runTransaction { transaction ->
+                val accSnap = transaction.get(accRef)
+                val acc = accSnap.toObject(WalletAccount::class.java)
+                val goal = goalRef?.let { transaction.get(it).toObject(SavingsGoal::class.java) }
+
+                val amtDiff = cleanAmt - tx.amount
+                if (acc != null) {
+                    val convertedDiff = FinanceUtils.convertCurrency(amtDiff, tx.currencyCode, acc.currencyCode, exchangeRate)
+                    val balanceDelta = if (tx.typeEnum == TxType.INCOME) convertedDiff else -convertedDiff
+                    transaction.update(
+                        accRef,
+                        mapOf(
+                            "balance" to FinanceUtils.round2(acc.balance + balanceDelta),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+                if (goalRef != null && goal != null) {
+                    val nioDiff = FinanceUtils.convertCurrency(amtDiff, tx.currencyCode, CurrencyCode.NIO, exchangeRate)
+                    transaction.update(
+                        goalRef,
+                        mapOf(
+                            "currentNio" to FinanceUtils.round2((goal.currentNio + nioDiff).coerceAtLeast(0.0)),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+                transaction.update(
+                    txRef,
+                    mapOf(
+                        "amount" to cleanAmt,
+                        "note" to cleanNote,
+                        "dateIso" to date,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }.await()
+        }
+    }
 
     suspend fun deleteTransaction(
         tx: FinanceTransaction,

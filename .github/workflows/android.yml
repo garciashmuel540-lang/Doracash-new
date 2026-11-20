@@ -37,4 +37,10 @@ jobs:
         run: |
           set -euo pipefail
           cp app/build/outputs/apk/debug/app-debug.apk Doracash-base.apk
-          gh release create doracash-1.1-base Doracash-base.apk --prerelease --target "$GITHUB_SHA" --title "Doracash 1.1 · base para firma personal" --notes "Usar el instalador para actualizar con la firma existente."
+          sha256sum Doracash-base.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          if gh release view doracash-1.1-base >/dev/null 2>&1; then
+            gh release upload doracash-1.1-base Doracash-base.apk SHA256SUMS.txt --clobber
+          else
+            gh release create doracash-1.1-base Doracash-base.apk SHA256SUMS.txt --prerelease --target "$GITHUB_SHA" --title "Doracash 1.1 · base para firma personal" --notes "Actualización sincronizada de Doracash 1.1. Incluye SHA256SUMS.txt; usar el instalador para firmar con tu llave permanente."
+          fi

@@ -202,4 +202,27 @@ class ExampleUnitTest {
             CardDetector.isDuplicateCard(existing, DetectedCardMetadata(network = CardNetwork.MASTERCARD, last4 = "4821"))
         )
     }
+
+    @Test
+    fun paydayCountdown_computesQuincenaAndFinDeMesCorrectly() {
+        val on15th = Calendar.getInstance().apply { set(2026, Calendar.MAY, 15, 9, 0, 0) }
+        assertEquals(0, FinanceUtils.daysUntilPayday(on15th))
+        assertEquals("Hoy es quincena", FinanceUtils.paydayBannerText(on15th))
+
+        val on14th = Calendar.getInstance().apply { set(2026, Calendar.MAY, 14, 9, 0, 0) }
+        assertEquals(1, FinanceUtils.daysUntilPayday(on14th))
+        assertEquals("Falta 1 día para la quincena", FinanceUtils.paydayBannerText(on14th))
+
+        val on20thMay = Calendar.getInstance().apply { set(2026, Calendar.MAY, 20, 9, 0, 0) }
+        assertEquals(11, FinanceUtils.daysUntilPayday(on20thMay))
+        assertEquals("Faltan 11 días para la quincena", FinanceUtils.paydayBannerText(on20thMay))
+
+        val on30thMay = Calendar.getInstance().apply { set(2026, Calendar.MAY, 30, 9, 0, 0) }
+        assertEquals(1, FinanceUtils.daysUntilPayday(on30thMay))
+        assertEquals("Falta 1 día para la quincena", FinanceUtils.paydayBannerText(on30thMay))
+
+        val on31stMay = Calendar.getInstance().apply { set(2026, Calendar.MAY, 31, 9, 0, 0) }
+        assertEquals(0, FinanceUtils.daysUntilPayday(on31stMay))
+        assertEquals("Hoy es quincena", FinanceUtils.paydayBannerText(on31stMay))
+    }
 }

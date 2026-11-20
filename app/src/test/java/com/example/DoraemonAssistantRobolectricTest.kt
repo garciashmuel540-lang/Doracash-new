@@ -48,7 +48,7 @@ class DoraemonAssistantRobolectricTest {
                 DoraemonAssistant(
                     visible = visible,
                     gesture = gesture,
-                    thoughtText = "Hola desde el Bolsillo 4D",
+                    thoughtText = "Hola desde Tu bolsillo al instante",
                     onGestureSelect = { gesture = it },
                     onDismiss = { visible = false }
                 )

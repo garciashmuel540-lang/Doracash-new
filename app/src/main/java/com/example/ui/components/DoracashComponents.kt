@@ -141,10 +141,13 @@ fun Pocket4DHeroCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "PATRIMONIO · BOLSILLO 4D",
+                        text = "PATRIMONIO · TU BOLSILLO AL INSTANTE",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.88f),
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
                     )
                     Surface(
                         color = Color.White.copy(alpha = 0.22f),

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui.screens
 
 import android.app.Activity
@@ -6,11 +8,13 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -150,13 +154,16 @@ fun TransactionModalDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     TxType.entries.forEach { t ->
                         FilterChip(
                             selected = txType == t,
                             onClick = { txType = t },
-                            label = { Text(t.label, maxLines = 1) },
-                            modifier = Modifier.weight(1f)
+                            label = { Text(t.label, maxLines = 1) }
                         )
                     }
                 }
@@ -504,13 +511,16 @@ fun ScheduleBillDialog(
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     CurrencyCode.entries.forEach { c ->
                         FilterChip(
                             selected = currency == c,
                             onClick = { currency = c },
-                            label = { Text(c.name) },
-                            modifier = Modifier.weight(1f)
+                            label = { Text(c.name, maxLines = 1) }
                         )
                     }
                 }
@@ -690,14 +700,17 @@ fun AccountEditDialog(
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     CurrencyCode.entries.forEach { c ->
                         FilterChip(
                             selected = currency == c,
                             onClick = { if (existing == null) currency = c },
                             enabled = existing == null,
-                            label = { Text(c.label) },
-                            modifier = Modifier.weight(1f)
+                            label = { Text(c.label, maxLines = 1) }
                         )
                     }
                 }
@@ -1155,16 +1168,20 @@ fun CardEditDialog(
                                 color = DoraSkyBlue
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             FilledTonalButton(
                                 onClick = {
                                     GooglePayCardManager.loadPaymentDataTask(context)
                                         .addOnCompleteListener { task -> googlePayDialogLauncher.launch(task) }
                                 },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
                                     .testTag("dialog_google_pay_detect_button")
                             ) {
                                 Icon(Icons.Filled.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -1183,9 +1200,9 @@ fun CardEditDialog(
                                             }
                                     }
                                 },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.heightIn(min = 48.dp)
                             ) {
                                 Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1634,7 +1651,11 @@ fun CardPayDebtDialog(
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     listOf(0.25 to "25%", 0.50 to "50%", 1.0 to "Saldar todo").forEach { (ratio, label) ->
                         val suggested = FinanceUtils.round2(
                             FinanceUtils.convertCurrency(
@@ -1647,7 +1668,7 @@ fun CardPayDebtDialog(
                         FilterChip(
                             selected = (amountStr.toDoubleOrNull() ?: -1.0) == suggested,
                             onClick = { amountStr = suggested.toString() },
-                            label = { Text(label) }
+                            label = { Text(label, maxLines = 1) }
                         )
                     }
                 }
