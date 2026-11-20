@@ -136,9 +136,9 @@ fun DoraemonAvdCharacter(
                 repeatMode = RepeatMode.Reverse
             ),
             label = "doraemon_bob"
-        ).value
+        )
     } else {
-        0f
+        null
     }
 
     val cd = when (gesture) {
@@ -154,6 +154,7 @@ fun DoraemonAvdCharacter(
         contentDescription = cd,
         contentScale = ContentScale.Fit,
         modifier = modifier.graphicsLayer {
+            val motion = idleMotion?.value ?: 0f
             val bobAmplitude = when (gesture) {
                 DoraemonGesture.CELEBRATE -> 8f
                 DoraemonGesture.SALUTE -> 4f
@@ -161,13 +162,13 @@ fun DoraemonAvdCharacter(
                 else -> 2.5f
             }
             val waveRot = when (gesture) {
-                DoraemonGesture.SALUTE -> idleMotion * 4.5f
-                DoraemonGesture.ALERT -> idleMotion * 5.0f
-                DoraemonGesture.CELEBRATE -> idleMotion * 3.5f
-                else -> idleMotion * 1.5f
+                DoraemonGesture.SALUTE -> motion * 4.5f
+                DoraemonGesture.ALERT -> motion * 5.0f
+                DoraemonGesture.CELEBRATE -> motion * 3.5f
+                else -> motion * 1.5f
             }
             rotationZ = if (isAnimating) targetTilt + waveRot else 0f
-            translationY = if (isAnimating) -kotlin.math.abs(idleMotion) * bobAmplitude else 0f
+            translationY = if (isAnimating) -kotlin.math.abs(motion) * bobAmplitude else 0f
             scaleX = targetScale
             scaleY = targetScale
         }

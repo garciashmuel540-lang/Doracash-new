@@ -35,6 +35,16 @@ service cloud.firestore {
              data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 30;
     }
 
+    function validPosting(p) {
+      return p is map && p.keys().hasOnly(['collection', 'documentId', 'factor']) &&
+             p.collection in ['accounts', 'goals', 'cards'] && isValidId(p.documentId) &&
+             p.factor is number && p.factor >= -10000 && p.factor <= 10000;
+    }
+    function validPostings(data) {
+      return !('postings' in data) || (data.postings is list && data.postings.size() in [1, 2] &&
+             validPosting(data.postings[0]) && (data.postings.size() == 1 || validPosting(data.postings[1])));
+    }
+
     function isValidTransaction(data) {
       return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
              data.txType in ['INCOME', 'EXPENSE', 'TRANSFER'] &&
@@ -169,8 +179,8 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isValidId(transactionId) &&
                          incoming().userId == userId &&
                          incoming().keys().hasAll(['userId', 'txType', 'amount', 'currency', 'accountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
-                         isValidTransaction(incoming()) &&
+                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'postings', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
+                         isValidTransaction(incoming()) && validPostings(incoming()) &&
                          isValidTimestamp(incoming().createdAt) &&
                          isValidTimestamp(incoming().updatedAt);
         allow update: if isOwner(userId) && isValidId(transactionId) &&
@@ -189,8 +199,9 @@ service cloud.firestore {
                          incoming().userId == userId &&
                          (!('goalName' in incoming()) || (incoming().goalName is string && incoming().goalName.size() <= 80)) &&
                          incoming().keys().hasAll(['userId', 'txType', 'amount', 'currency', 'accountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'goalName', 'createdAt', 'updatedAt']) &&
-                         isValidTransaction(incoming()) &&
+                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'postings', 'chargeCardId', 'categoryId', 'note', 'dateIso', 'goalName', 'createdAt', 'updatedAt']) &&
+                         isValidTransaction(incoming()) && validPostings(incoming()) &&
+                         (!('chargeCardId' in incoming()) || isValidId(incoming().chargeCardId)) &&
                          isValidTimestamp(incoming().createdAt) &&
                          isValidTimestamp(incoming().updatedAt);
         allow update: if isOwner(userId) && isValidId(transactionId) &&

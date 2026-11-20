@@ -21,6 +21,14 @@ import java.util.Calendar
 
 class ExampleUnitTest {
 
+    @Test fun consecutiveEditsUseTheOriginalConversionWithoutRoundingDrift() {
+        val posting = com.example.data.BalancePosting("accounts", "usd", 1.0 / 36.62)
+        val change = posting.changeBetween(100.0, 115.0) + posting.changeBetween(115.0, 180.0)
+        assertEquals(posting.changeBetween(100.0, 180.0), change, 0.000001)
+        assertEquals(0.0, posting.changeBetween(180.0, 180.0), 0.0)
+    }
+
+
     @Test
     fun categoryCatalog_classifiesDebtAndSavingsCorrectly() {
         assertEquals(EntryClassification.DEBT, CategoryCatalog.classificationOf("deudas"))

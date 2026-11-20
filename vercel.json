@@ -1,0 +1,5 @@
+{
+  "framework": null,
+  "buildCommand": "mkdir -p dist && cp public/index.html dist/ && cp app/src/main/res/drawable/img_doraemon_mascot.png dist/doraemon.png && cp app/src/main/res/font/fredoka.ttf dist/fredoka.ttf",
+  "outputDirectory": "dist"
+}

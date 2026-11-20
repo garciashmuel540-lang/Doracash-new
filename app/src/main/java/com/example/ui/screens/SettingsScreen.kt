@@ -105,7 +105,7 @@ fun SettingsScreen(
         mutableStateOf(rel?.latestVersionName?.ifBlank { currentVersionName } ?: currentVersionName)
     }
     var updateDownloadUrl by remember(rel?.downloadUrl) {
-        mutableStateOf(rel?.downloadUrl ?: "https://github.com/garciashmuel540-lang/Doracash-new/releases/latest")
+        mutableStateOf(rel?.downloadUrl?.takeIf { it.isNotBlank() } ?: "https://doracash-new.vercel.app")
     }
     var updateNotes by remember(rel?.releaseNotes) {
         mutableStateOf(rel?.releaseNotes ?: "Mejoras en movimientos, quincena, botones y sincronización.")

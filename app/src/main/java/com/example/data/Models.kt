@@ -275,6 +275,17 @@ data class WalletAccount(
 }
 
 @Keep
+data class BalancePosting(
+    val collection: String = "",
+    val documentId: String = "",
+    val factor: Double = 0.0
+) {
+    fun changeBetween(previous: Double, next: Double): Double = FinanceUtils.round2(
+        FinanceUtils.round2(next * factor) - FinanceUtils.round2(previous * factor)
+    )
+}
+
+@Keep
 @IgnoreExtraProperties
 data class FinanceTransaction(
     @DocumentId val id: String = "",
@@ -287,11 +298,17 @@ data class FinanceTransaction(
     val categoryId: String = "comida",
     val note: String = "",
     val dateIso: String = "",
+    val postings: List<BalancePosting> = emptyList(),
     @com.google.firebase.firestore.ServerTimestamp val createdAt: Timestamp? = null,
     @com.google.firebase.firestore.ServerTimestamp val updatedAt: Timestamp? = null
 ) {
     val typeEnum: TxType get() = TxType.safeValueOf(txType)
     val currencyCode: CurrencyCode get() = CurrencyCode.safeValueOf(currency)
+
+    fun canConfirmSingleAccount(): Boolean =
+        postings.isEmpty() && typeEnum != TxType.TRANSFER &&
+            CategoryCatalog.classificationOf(categoryId) == EntryClassification.NORMAL &&
+            categoryId !in setOf("ajuste", "ajuste_i")
 
     fun toCreateMap(): Map<String, Any> {
         val raw = mutableMapOf<String, Any?>(
@@ -300,6 +317,7 @@ data class FinanceTransaction(
             "amount" to amount,
             "currency" to currency,
             "accountId" to accountId,
+            "postings" to postings.takeIf { it.isNotEmpty() },
             "toAccountId" to toAccountId?.takeIf { it.isNotBlank() },
             "categoryId" to categoryId,
             "note" to note.take(160),

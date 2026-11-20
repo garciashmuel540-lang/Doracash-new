@@ -5,8 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -317,7 +315,7 @@ private fun AuthenticatedDoracashShell(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "Tu bolsillo al instante",
+                                    text = stringResource(R.string.app_tagline),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -528,8 +526,7 @@ private fun AuthenticatedDoracashShell(
                                 val relInfo = data.releaseInfo
                                 var dismissedUpdateVersion by rememberSaveable { mutableStateOf<Int?>(null) }
                                 val showUpdateBanner = relInfo != null &&
-                                    (relInfo.latestVersionCode > BuildConfig.VERSION_CODE ||
-                                        (relInfo.forceNotice && relInfo.downloadUrl.startsWith("https://"))) &&
+                                    relInfo.latestVersionCode > BuildConfig.VERSION_CODE && relInfo.downloadUrl.startsWith("https://") &&
                                     dismissedUpdateVersion != relInfo.latestVersionCode
 
                                 Column(
@@ -604,18 +601,46 @@ private fun AuthenticatedDoracashShell(
                                         }
                                     }
 
+                                    if (isDoraemonOverlayVisible) {
+                                        val disp = CurrencyCode.safeValueOf(data.profile.displayCurrency)
+                                        val netWorth = remember(data.accounts, disp, data.profile.exchangeRate) {
+                                            data.accounts.sumOf {
+                                                FinanceUtils.convertCurrency(it.balance, it.currencyCode, disp, data.profile.exchangeRate)
+                                            }
+                                        }
+                                        val defaultGreeting = "¡Hola! Tienes ${data.accounts.size} cuentas y saldo total de ${FinanceUtils.formatMoney(netWorth, disp)}."
+
+                                        DoraemonImportantPopup(
+                                            visible = isDoraemonOverlayVisible,
+                                            tipState = doraemonTipState,
+                                            defaultThoughtText = defaultGreeting,
+                                            gestureOverride = overlayGestureOverride,
+                                            onGestureSelect = { chosen -> overlayGestureOverride = chosen },
+                                            onDismissNotice = {
+                                                isDoraemonOverlayVisible = false
+                                                overlayGestureOverride = null
+                                                viewModel.dismissDoraemonNotice()
+                                            },
+                                            onRetryCheck = { viewModel.evaluateImportantMoment(data, force = true) },
+                                            onOpenAssistant = {
+                                                isDoraemonOverlayVisible = false
+                                                overlayGestureOverride = null
+                                                viewModel.dismissDoraemonNotice()
+                                                showDoraemonSheet = true
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                                        )
+                                    }
+
                                     val contentModifier = Modifier
                                         .widthIn(max = 760.dp)
                                         .fillMaxWidth()
                                         .weight(1f)
 
-                                    Crossfade(
-                                        targetState = currentTab,
-                                        animationSpec = tween(durationMillis = 150),
-                                        label = "tab_crossfade",
-                                        modifier = contentModifier
-                                    ) { tab ->
-                                        when (tab) {
+                                    Box(modifier = contentModifier) {
+                                        when (currentTab) {
                                             DoracashTab.DASHBOARD -> DashboardScreen(
                                                 snapshot = data,
                                                 onEdit = { tx, note, date, amt ->
@@ -742,38 +767,6 @@ private fun AuthenticatedDoracashShell(
                             }
                         }
 
-                        if (snapshot != null) {
-                            val disp = CurrencyCode.safeValueOf(snapshot.profile.displayCurrency)
-                            val netWorth = remember(snapshot.accounts, disp, snapshot.profile.exchangeRate) {
-                                snapshot.accounts.sumOf {
-                                    FinanceUtils.convertCurrency(it.balance, it.currencyCode, disp, snapshot.profile.exchangeRate)
-                                }
-                            }
-                            val defaultGreeting = "¡Hola! Tienes ${snapshot.accounts.size} cuentas y saldo total de ${FinanceUtils.formatMoney(netWorth, disp)}."
-
-                            DoraemonImportantPopup(
-                                visible = isDoraemonOverlayVisible,
-                                tipState = doraemonTipState,
-                                defaultThoughtText = defaultGreeting,
-                                gestureOverride = overlayGestureOverride,
-                                onGestureSelect = { chosen -> overlayGestureOverride = chosen },
-                                onDismissNotice = {
-                                    isDoraemonOverlayVisible = false
-                                    overlayGestureOverride = null
-                                    viewModel.dismissDoraemonNotice()
-                                },
-                                onRetryCheck = { viewModel.evaluateImportantMoment(snapshot, force = true) },
-                                onOpenAssistant = {
-                                    isDoraemonOverlayVisible = false
-                                    overlayGestureOverride = null
-                                    viewModel.dismissDoraemonNotice()
-                                    showDoraemonSheet = true
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(start = 12.dp, end = 88.dp, bottom = 10.dp)
-                            )
-                        }
                     }
                 }
             }
@@ -918,7 +911,7 @@ private fun AuthenticatedDoracashShell(
                     CardChargeDialog(
                         card = card,
                         onDismiss = { chargeCardTarget = null },
-                        onConfirmCharge = { amt, catId, note, dateIso ->
+                        onConfirmCharge = { amt, catId, note, dateIso, pending ->
                             viewModel.recordCardCharge(
                                 card = card,
                                 amountInCardCurrency = amt,
@@ -926,7 +919,8 @@ private fun AuthenticatedDoracashShell(
                                 note = note,
                                 dateIso = dateIso,
                                 accounts = snapshot.accounts,
-                                exchangeRate = snapshot.profile.exchangeRate
+                                exchangeRate = snapshot.profile.exchangeRate,
+                                pending = pending
                             )
                             chargeCardTarget = null
                         }
@@ -939,12 +933,13 @@ private fun AuthenticatedDoracashShell(
                         accounts = snapshot.accounts,
                         exchangeRate = snapshot.profile.exchangeRate,
                         onDismiss = { payCardTarget = null },
-                        onConfirmPay = { payAcc, amtInAccCurr ->
+                        onConfirmPay = { payAcc, amtInAccCurr, pending ->
                             viewModel.payCardDebt(
                                 card = card,
                                 payAccount = payAcc,
                                 amountInAccountCurrency = amtInAccCurr,
-                                exchangeRate = snapshot.profile.exchangeRate
+                                exchangeRate = snapshot.profile.exchangeRate,
+                                pending = pending
                             )
                             payCardTarget = null
                         }

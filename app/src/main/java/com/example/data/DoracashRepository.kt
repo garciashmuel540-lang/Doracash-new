@@ -12,6 +12,8 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.PersistentCacheSettings
 import com.google.firebase.firestore.firestoreSettings
 import com.google.firebase.firestore.snapshots
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
@@ -65,7 +67,7 @@ class DoracashRepository(
             .snapshots()
             .map { snap ->
                 snap.toObjects(FinanceTransaction::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.dateIso }
+                    .sortedWith(compareByDescending<FinanceTransaction> { it.dateIso }.thenByDescending { it.createdAt }.thenBy { it.id })
             }
             .wrapStreamError(userId, "users/$userId/transactions")
 
@@ -162,7 +164,7 @@ class DoracashRepository(
                 releaseInfo = values[9] as AppReleaseInfo?,
                 pending = values[10] as List<FinanceTransaction>
             )
-        }
+        }.flowOn(Dispatchers.Default)
     }
 
     private fun <T> Flow<T>.wrapStreamError(uid: String, path: String): Flow<T> = catch { error ->
@@ -181,9 +183,9 @@ class DoracashRepository(
         safeWrite("users/$userId", OperationType.CREATE) {
             val uid = requireUserId()
             check(uid == userId)
-            val snap = userDoc(uid).get().await()
-            if (!snap.exists()) {
-                val batch = db.batch()
+            val profileRef = userDoc(uid)
+            db.runTransaction { batch ->
+                if (batch.get(profileRef).exists()) return@runTransaction
                 val profile = UserProfile(
                     userId = uid,
                     displayName = displayName.ifBlank { "Usuario Doracash" }.take(80),
@@ -211,8 +213,8 @@ class DoracashRepository(
                 )
                 batch.set(userDoc(uid).collection("accounts").document(), cashAcc.toCreateMap())
                 batch.set(userDoc(uid).collection("accounts").document(), bankAcc.toCreateMap())
-                batch.commit().await()
-            }
+                Unit
+            }.await()
         }
 
     suspend fun updateSettings(
@@ -296,6 +298,7 @@ class DoracashRepository(
         require(dateIso.length == 10) { "Fecha inválida." }
 
         val batch = db.batch()
+        val postings = mutableListOf<BalancePosting>()
         val txRef = userDoc(uid).collection("transactions").document()
         val accRef = userDoc(uid).collection("accounts").document(account.id)
 
@@ -309,6 +312,8 @@ class DoracashRepository(
                 toAccount.currencyCode,
                 exchangeRate
             )
+            postings += BalancePosting("accounts", account.id, -1.0)
+            postings += BalancePosting("accounts", toAccount.id, FinanceUtils.convertCurrency(1.0, account.currencyCode, toAccount.currencyCode, exchangeRate))
             val tx = FinanceTransaction(
                 userId = uid,
                 txType = TxType.TRANSFER.name,
@@ -320,23 +325,24 @@ class DoracashRepository(
                 note = note.trim().ifBlank { "Transferencia a ${toAccount.name}" }.take(160),
                 dateIso = dateIso
             )
-            batch.set(txRef, tx.toCreateMap())
+            batch.set(txRef, tx.copy(postings = postings).toCreateMap())
             batch.update(
                 accRef,
                 mapOf(
-                    "balance" to FinanceUtils.round2(account.balance - amount),
+                    "balance" to FieldValue.increment(FinanceUtils.round2(-amount)),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
             batch.update(
                 userDoc(uid).collection("accounts").document(toAccount.id),
                 mapOf(
-                    "balance" to FinanceUtils.round2(toAccount.balance + converted),
+                    "balance" to FieldValue.increment(FinanceUtils.round2(converted)),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
         } else {
             val isSavingsEntry = savingsType != null || CategoryCatalog.classificationOf(categoryId) == EntryClassification.SAVINGS
+            postings += BalancePosting("accounts", account.id, if (txType == TxType.INCOME) 1.0 else -1.0)
             var resolvedCategoryId = categoryId
 
             if (isSavingsEntry) {
@@ -356,7 +362,7 @@ class DoracashRepository(
                     batch.update(
                         userDoc(uid).collection("goals").document(matchedGoal.id),
                         mapOf(
-                            "currentNio" to FinanceUtils.round2(matchedGoal.currentNio + nioAdded),
+                            "currentNio" to FieldValue.increment(FinanceUtils.round2(nioAdded)),
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
                     )
@@ -375,6 +381,7 @@ class DoracashRepository(
                     batch.set(newGoalRef, newGoal.toCreateMap())
                     newGoalRef.id
                 }
+                postings += BalancePosting("goals", goalId, FinanceUtils.convertCurrency(1.0, account.currencyCode, CurrencyCode.NIO, exchangeRate))
                 resolvedCategoryId = CategoryCatalog.buildSavingsCategoryId(effectiveType, goalId)
             }
 
@@ -388,7 +395,7 @@ class DoracashRepository(
                 note = note.trim().take(160),
                 dateIso = dateIso
             )
-            batch.set(txRef, tx.toCreateMap())
+            batch.set(txRef, tx.copy(postings = postings).toCreateMap())
 
             var netDelta = if (txType == TxType.INCOME) amount else -amount
 
@@ -403,7 +410,7 @@ class DoracashRepository(
                     batch.update(
                         userDoc(uid).collection("cards").document(debit.card.id),
                         mapOf(
-                            "debtBalance" to FinanceUtils.round2(debit.remainingDebtAfter),
+                            "debtBalance" to FieldValue.increment(-debit.paymentInCardCurrency),
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
                     )
@@ -414,6 +421,10 @@ class DoracashRepository(
                         currency = account.currency,
                         accountId = account.id,
                         categoryId = "deudas",
+                        postings = listOf(
+                            BalancePosting("accounts", account.id, -1.0),
+                            BalancePosting("cards", debit.card.id, -debit.paymentInCardCurrency / debit.paymentInIncomeCurrency)
+                        ),
                         note = "Débito auto → ${debit.card.alias} (•••• ${debit.card.last4})".take(160),
                         dateIso = dateIso
                     )
@@ -425,7 +436,7 @@ class DoracashRepository(
             batch.update(
                 accRef,
                 mapOf(
-                    "balance" to FinanceUtils.round2(account.balance + netDelta),
+                    "balance" to FieldValue.increment(FinanceUtils.round2(netDelta)),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
@@ -448,12 +459,20 @@ class DoracashRepository(
             val record = transaction.get(draft)
             val tx = record.toObject(FinanceTransaction::class.java)
                 ?: return@runTransaction
+            if (tx.postings.isNotEmpty()) {
+                checkChargeCard(uid, transaction, record.getString("chargeCardId"))
+                applyPostingChanges(uid, transaction, tx.copy(amount = 0.0), tx.amount)
+                transaction.set(user.collection("transactions").document(id), tx.toCreateMap())
+                transaction.delete(draft)
+                return@runTransaction
+            }
             val source = user.collection("accounts").document(tx.accountId)
             val account = requireNotNull(transaction.get(source).toObject(WalletAccount::class.java)) {
                 "La cuenta de origen ya no existe."
             }
             require(account.currency == tx.currency) { "La moneda de la cuenta cambió." }
 
+            val postings = mutableListOf(BalancePosting("accounts", account.id, if (tx.typeEnum == TxType.INCOME) 1.0 else -1.0))
             val isTransfer = tx.typeEnum == TxType.TRANSFER
             val destId = tx.toAccountId?.takeIf { it.isNotBlank() }
             val destRef = if (isTransfer) {
@@ -505,10 +524,12 @@ class DoracashRepository(
                     )
                     newGoalRef.id
                 }
+                postings += BalancePosting("goals", goalId, FinanceUtils.convertCurrency(1.0, tx.currencyCode, CurrencyCode.NIO, rate))
                 category = CategoryCatalog.buildSavingsCategoryId(kind, goalId)
             }
 
             if (destRef != null && targetAcc != null) {
+                postings += BalancePosting("accounts", targetAcc.id, FinanceUtils.convertCurrency(1.0, tx.currencyCode, targetAcc.currencyCode, rate))
                 val converted = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, targetAcc.currencyCode, rate)
                 transaction.update(
                     destRef,
@@ -529,7 +550,7 @@ class DoracashRepository(
             )
             transaction.set(
                 user.collection("transactions").document(id),
-                tx.copy(userId = uid, categoryId = category).toCreateMap()
+                tx.copy(userId = uid, categoryId = category, postings = postings).toCreateMap()
             )
             transaction.delete(draft)
         }.await()
@@ -574,64 +595,47 @@ class DoracashRepository(
         val uid = requireUserId()
         require(date.length == 10) { "Fecha inválida." }
         val cleanNote = note.trim().take(160)
-        val cleanAmt = FinanceUtils.round2(newAmount ?: tx.amount)
-        require(cleanAmt > 0.0) { "El monto debe ser mayor a cero." }
-
-        val amountChanged = kotlin.math.abs(cleanAmt - tx.amount) >= 0.01
-        if (!amountChanged || tx.typeEnum == TxType.TRANSFER) {
-            userDoc(uid).collection("transactions").document(tx.id)
-                .update(
-                    mapOf(
-                        "note" to cleanNote,
-                        "dateIso" to date,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
+        val txRef = userDoc(uid).collection("transactions").document(tx.id)
+        val fields = mapOf("note" to cleanNote, "dateIso" to date, "updatedAt" to FieldValue.serverTimestamp())
+        if (newAmount == null || FinanceUtils.round2(newAmount) == tx.amount) {
+            txRef.update(fields).await()
         } else {
-            val txRef = userDoc(uid).collection("transactions").document(tx.id)
-            val accRef = userDoc(uid).collection("accounts").document(tx.accountId)
-            val linkedGoalId = if (CategoryCatalog.classificationOf(tx.categoryId) == EntryClassification.SAVINGS) {
-                CategoryCatalog.linkedGoalId(tx.categoryId)
-            } else null
-            val goalRef = linkedGoalId?.let { userDoc(uid).collection("goals").document(it) }
-
-            db.runTransaction { transaction ->
-                val accSnap = transaction.get(accRef)
-                val acc = accSnap.toObject(WalletAccount::class.java)
-                val goal = goalRef?.let { transaction.get(it).toObject(SavingsGoal::class.java) }
-
-                val amtDiff = cleanAmt - tx.amount
-                if (acc != null) {
-                    val convertedDiff = FinanceUtils.convertCurrency(amtDiff, tx.currencyCode, acc.currencyCode, exchangeRate)
-                    val balanceDelta = if (tx.typeEnum == TxType.INCOME) convertedDiff else -convertedDiff
-                    transaction.update(
-                        accRef,
-                        mapOf(
-                            "balance" to FinanceUtils.round2(acc.balance + balanceDelta),
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
-                    )
-                }
-                if (goalRef != null && goal != null) {
-                    val nioDiff = FinanceUtils.convertCurrency(amtDiff, tx.currencyCode, CurrencyCode.NIO, exchangeRate)
-                    transaction.update(
-                        goalRef,
-                        mapOf(
-                            "currentNio" to FinanceUtils.round2((goal.currentNio + nioDiff).coerceAtLeast(0.0)),
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
-                    )
-                }
-                transaction.update(
-                    txRef,
-                    mapOf(
-                        "amount" to cleanAmt,
-                        "note" to cleanNote,
-                        "dateIso" to date,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                )
+            val amount = FinanceUtils.round2(newAmount)
+            require(amount > 0 && newAmount.isFinite()) { "Monto inválido." }
+            db.runTransaction { operation ->
+                val current = requireNotNull(operation.get(txRef).toObject(FinanceTransaction::class.java)) { "El movimiento ya no existe." }
+                val booked = if (current.postings.isEmpty()) {
+                    require(current.canConfirmSingleAccount()) { "Este registro no conserva el detalle de saldos." }
+                    val account = operation.get(userDoc(uid).collection("accounts").document(current.accountId))
+                    require(account.getString("currency") == current.currency) { "La moneda de la cuenta es distinta." }
+                    val sign = if (current.typeEnum == TxType.INCOME) 1.0 else -1.0
+                    current.copy(postings = listOf(BalancePosting("accounts", current.accountId, sign)))
+                } else current
+                applyPostingChanges(uid, operation, booked, amount)
+                operation.update(txRef, fields + ("amount" to amount))
             }.await()
+        }
+        Unit
+    }
+
+    private fun applyPostingChanges(
+        uid: String,
+        operation: com.google.firebase.firestore.Transaction,
+        current: FinanceTransaction,
+        newAmount: Double
+    ) {
+        for (posting in current.postings) {
+            val field = when (posting.collection) {
+                "accounts" -> "balance"
+                "cards" -> "debtBalance"
+                "goals" -> "currentNio"
+                else -> error("Vínculo de saldo desconocido.")
+            }
+            val delta = posting.changeBetween(current.amount, newAmount)
+            if (delta != 0.0) {
+                val ref = userDoc(uid).collection(posting.collection).document(posting.documentId)
+                operation.update(ref, field, FieldValue.increment(delta), "updatedAt", FieldValue.serverTimestamp())
+            }
         }
     }
 
@@ -644,6 +648,15 @@ class DoracashRepository(
         val uid = requireUserId()
         val batch = db.batch()
         val txRef = userDoc(uid).collection("transactions").document(tx.id)
+        if (tx.postings.isNotEmpty()) {
+            db.runTransaction { operation ->
+                val current = operation.get(txRef).toObject(FinanceTransaction::class.java) ?: return@runTransaction
+                applyPostingChanges(uid, operation, current, 0.0)
+                operation.delete(txRef)
+                Unit
+            }.await()
+            return@safeWrite
+        }
         batch.delete(txRef)
 
         val srcAcc = accounts.firstOrNull { it.id == tx.accountId }
@@ -795,83 +808,91 @@ class DoracashRepository(
         existingGoals: List<SavingsGoal> = emptyList()
     ): Result<Unit> = safeWrite("scheduledBills/${bill.id}", OperationType.UPDATE) {
         val uid = requireUserId()
-        if (bill.paidDates.contains(occurrenceIso)) return@safeWrite
-
-        val batch = db.batch()
-        val updatedPaid = (bill.paidDates + occurrenceIso).distinct().takeLast(120)
-        batch.update(
-            userDoc(uid).collection("scheduledBills").document(bill.id),
-            mapOf(
-                "paidDates" to updatedPaid,
-                "updatedAt" to FieldValue.serverTimestamp()
-            )
-        )
-
-        if (account != null) {
-            val amtInAcc = FinanceUtils.convertCurrency(
-                bill.amount,
-                bill.currencyCode,
-                account.currencyCode,
-                exchangeRate
-            )
+        val billRef = userDoc(uid).collection("scheduledBills").document(bill.id)
+        db.runTransaction { batch ->
+            val currentBill = requireNotNull(batch.get(billRef).toObject(ScheduledBill::class.java))
+            if (occurrenceIso in currentBill.paidDates) return@runTransaction
+            require(currentBill.amount == bill.amount && currentBill.accountId == bill.accountId &&
+                currentBill.currency == bill.currency && currentBill.categoryId == bill.categoryId) { "El pago cambió. Volvé a abrirlo." }
+            val postings = mutableListOf<BalancePosting>()
+            val updatedPaid = (currentBill.paidDates + occurrenceIso).takeLast(120)
             batch.update(
-                userDoc(uid).collection("accounts").document(account.id),
+                userDoc(uid).collection("scheduledBills").document(bill.id),
                 mapOf(
-                    "balance" to FinanceUtils.round2(account.balance - amtInAcc),
+                    "paidDates" to updatedPaid,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
-        }
 
-        var resolvedCategoryId = bill.categoryId
-        if (CategoryCatalog.classificationOf(bill.categoryId) == EntryClassification.SAVINGS) {
-            val sType = CategoryCatalog.savingsTypeOf(bill.categoryId) ?: SavingsType.OTRO
-            val linkedId = CategoryCatalog.linkedGoalId(bill.categoryId)
-            val nioAdded = FinanceUtils.convertCurrency(
-                bill.amount,
-                bill.currencyCode,
-                CurrencyCode.NIO,
-                exchangeRate
-            )
-            val matchedGoal = existingGoals.firstOrNull { it.id == linkedId }
-                ?: existingGoals.firstOrNull { it.savingsType == sType }
-            val goalId = if (matchedGoal != null) {
+            if (account != null) {
+                postings += BalancePosting("accounts", account.id, -FinanceUtils.convertCurrency(1.0, bill.currencyCode, account.currencyCode, exchangeRate))
+                val amtInAcc = FinanceUtils.convertCurrency(
+                    bill.amount,
+                    bill.currencyCode,
+                    account.currencyCode,
+                    exchangeRate
+                )
                 batch.update(
-                    userDoc(uid).collection("goals").document(matchedGoal.id),
+                    userDoc(uid).collection("accounts").document(account.id),
                     mapOf(
-                        "currentNio" to FinanceUtils.round2(matchedGoal.currentNio + nioAdded),
+                        "balance" to FieldValue.increment(FinanceUtils.round2(-amtInAcc)),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 )
-                matchedGoal.id
-            } else {
-                val newGoalRef = userDoc(uid).collection("goals").document()
-                val newGoal = SavingsGoal(
-                    userId = uid,
-                    name = bill.title.ifBlank { sType.label }.take(80),
-                    targetNio = 1.0,
-                    currentNio = FinanceUtils.round2(nioAdded),
-                    iconKey = sType.key,
-                    deadlineIso = ""
-                )
-                batch.set(newGoalRef, newGoal.toCreateMap())
-                newGoalRef.id
             }
-            resolvedCategoryId = CategoryCatalog.buildSavingsCategoryId(sType, goalId)
-        }
 
-        val tx = FinanceTransaction(
-            userId = uid,
-            txType = TxType.EXPENSE.name,
-            amount = bill.amount,
-            currency = bill.currency,
-            accountId = account?.id ?: bill.accountId,
-            categoryId = resolvedCategoryId,
-            note = "Pago programado: ${bill.title}".take(160),
-            dateIso = FinanceUtils.todayIso()
-        )
-        batch.set(userDoc(uid).collection("transactions").document(), tx.toCreateMap())
-        batch.commit().await()
+            var resolvedCategoryId = bill.categoryId
+            if (CategoryCatalog.classificationOf(bill.categoryId) == EntryClassification.SAVINGS) {
+                val sType = CategoryCatalog.savingsTypeOf(bill.categoryId) ?: SavingsType.OTRO
+                val linkedId = CategoryCatalog.linkedGoalId(bill.categoryId)
+                val nioAdded = FinanceUtils.convertCurrency(
+                    bill.amount,
+                    bill.currencyCode,
+                    CurrencyCode.NIO,
+                    exchangeRate
+                )
+                val matchedGoal = existingGoals.firstOrNull { it.id == linkedId }
+                    ?: existingGoals.firstOrNull { it.savingsType == sType }
+                val goalId = if (matchedGoal != null) {
+                    batch.update(
+                        userDoc(uid).collection("goals").document(matchedGoal.id),
+                        mapOf(
+                            "currentNio" to FieldValue.increment(FinanceUtils.round2(nioAdded)),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    matchedGoal.id
+                } else {
+                    val newGoalRef = userDoc(uid).collection("goals").document()
+                    val newGoal = SavingsGoal(
+                        userId = uid,
+                        name = bill.title.ifBlank { sType.label }.take(80),
+                        targetNio = 1.0,
+                        currentNio = FinanceUtils.round2(nioAdded),
+                        iconKey = sType.key,
+                        deadlineIso = ""
+                    )
+                    batch.set(newGoalRef, newGoal.toCreateMap())
+                    newGoalRef.id
+                }
+                postings += BalancePosting("goals", goalId, FinanceUtils.convertCurrency(1.0, bill.currencyCode, CurrencyCode.NIO, exchangeRate))
+                resolvedCategoryId = CategoryCatalog.buildSavingsCategoryId(sType, goalId)
+            }
+
+            val tx = FinanceTransaction(
+                userId = uid,
+                txType = TxType.EXPENSE.name,
+                amount = bill.amount,
+                currency = bill.currency,
+                accountId = account?.id ?: bill.accountId,
+                categoryId = resolvedCategoryId,
+                postings = postings,
+                note = "Pago programado: ${bill.title}".take(160),
+                dateIso = FinanceUtils.todayIso()
+            )
+            batch.set(userDoc(uid).collection("transactions").document(), tx.toCreateMap())
+            Unit
+        }.await()
     }
 
     suspend fun deleteScheduledBill(billId: String): Result<Unit> =
@@ -894,7 +915,14 @@ class DoracashRepository(
                 categoryId = categoryId,
                 limitNio = FinanceUtils.round2(limitNio)
             )
-            col.document().set(budget.toCreateMap()).await()
+            val ref = col.document(categoryId)
+            db.runTransaction { operation ->
+                if (operation.get(ref).exists()) {
+                    operation.update(ref, "limitNio", budget.limitNio, "updatedAt", FieldValue.serverTimestamp())
+                } else {
+                    operation.set(ref, budget.toCreateMap())
+                }
+            }.await()
         } else {
             col.document(existing.id).update(
                 mapOf(
@@ -955,14 +983,14 @@ class DoracashRepository(
         batch.update(
             userDoc(uid).collection("goals").document(goal.id),
             mapOf(
-                "currentNio" to FinanceUtils.round2(goal.currentNio + nioAdded),
+                "currentNio" to FieldValue.increment(FinanceUtils.round2(nioAdded)),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
         )
         batch.update(
             userDoc(uid).collection("accounts").document(account.id),
             mapOf(
-                "balance" to FinanceUtils.round2(account.balance - amountInAccountCurrency),
+                "balance" to FieldValue.increment(FinanceUtils.round2(-amountInAccountCurrency)),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
         )
@@ -973,6 +1001,7 @@ class DoracashRepository(
             currency = account.currency,
             accountId = account.id,
             categoryId = CategoryCatalog.buildSavingsCategoryId(goal.savingsType, goal.id),
+            postings = listOf(BalancePosting("accounts", account.id, -1.0), BalancePosting("goals", goal.id, nioAdded / amountInAccountCurrency)),
             note = "Abono a ${goal.savingsType.shortLabel}: ${goal.name}".take(160),
             dateIso = FinanceUtils.todayIso()
         )
@@ -995,20 +1024,20 @@ class DoracashRepository(
             CurrencyCode.NIO,
             exchangeRate
         )
-        val updatedNio = (goal.currentNio - nioRecovered).coerceAtLeast(0.0)
+        require(FinanceUtils.round2(nioRecovered) <= goal.currentNio) { "El retiro supera el ahorro disponible." }
 
         val batch = db.batch()
         batch.update(
             userDoc(uid).collection("goals").document(goal.id),
             mapOf(
-                "currentNio" to FinanceUtils.round2(updatedNio),
+                "currentNio" to FieldValue.increment(-FinanceUtils.round2(nioRecovered)),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
         )
         batch.update(
             userDoc(uid).collection("accounts").document(account.id),
             mapOf(
-                "balance" to FinanceUtils.round2(account.balance + amountInAccountCurrency),
+                "balance" to FieldValue.increment(FinanceUtils.round2(amountInAccountCurrency)),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
         )
@@ -1019,6 +1048,7 @@ class DoracashRepository(
             currency = account.currency,
             accountId = account.id,
             categoryId = "otros_i",
+            postings = listOf(BalancePosting("accounts", account.id, 1.0), BalancePosting("goals", goal.id, -nioRecovered / amountInAccountCurrency)),
             note = if (goal.savingsType == SavingsType.PRESTAMO) {
                 "Recuperación de préstamo: ${goal.name}".take(160)
             } else {
@@ -1147,108 +1177,68 @@ class DoracashRepository(
         dateIso: String,
         linkedAccount: WalletAccount?,
         fallbackAccount: WalletAccount?,
-        exchangeRate: Double
+        exchangeRate: Double,
+        pending: Boolean = false
     ): Result<Unit> = safeWrite("cards/${card.id}", OperationType.UPDATE) {
         val uid = requireUserId()
-        require(!card.cardFrozen) { "Esta tarjeta está congelada. Descongélala para registrar compras." }
-        require(amountInCardCurrency > 0.0) { "El monto debe ser mayor a cero." }
-        require(dateIso.length == 10) { "Fecha inválida." }
-
-        val batch = db.batch()
-        val cleanAmt = FinanceUtils.round2(amountInCardCurrency)
-        val cleanNote = note.trim().ifBlank { "Compra con ${card.alias} (•••• ${card.last4})" }.take(160)
-
-        if (card.cardKindEnum == CardKind.DEBIT) {
-            requireNotNull(linkedAccount) { "Vinculá una cuenta a la tarjeta de débito para registrar la compra." }
-            val deductInAcc = FinanceUtils.round2(
-                FinanceUtils.convertCurrency(cleanAmt, card.currencyCode, linkedAccount.currencyCode, exchangeRate)
-            )
-            batch.update(
-                userDoc(uid).collection("accounts").document(linkedAccount.id),
-                mapOf(
-                    "balance" to FinanceUtils.round2(linkedAccount.balance - deductInAcc),
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            )
-            val tx = FinanceTransaction(
-                userId = uid,
-                txType = TxType.EXPENSE.name,
-                amount = deductInAcc,
-                currency = linkedAccount.currency,
-                accountId = linkedAccount.id,
-                categoryId = categoryId,
-                note = cleanNote,
-                dateIso = dateIso
-            )
-            batch.set(userDoc(uid).collection("transactions").document(), tx.toCreateMap())
-        } else {
-            batch.update(
-                userDoc(uid).collection("cards").document(card.id),
-                mapOf(
-                    "debtBalance" to FinanceUtils.round2(card.debtBalance + cleanAmt),
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            )
-            val refAcc = linkedAccount ?: fallbackAccount
-            if (refAcc != null) {
-                val tx = FinanceTransaction(
-                    userId = uid,
-                    txType = TxType.EXPENSE.name,
-                    amount = cleanAmt,
-                    currency = card.currency,
-                    accountId = refAcc.id,
-                    categoryId = categoryId,
-                    note = cleanNote,
-                    dateIso = dateIso
-                )
-                batch.set(userDoc(uid).collection("transactions").document(), tx.toCreateMap())
-            }
+        require(!card.cardFrozen) { "Esta tarjeta está congelada." }
+        val debit = card.cardKindEnum == CardKind.DEBIT
+        val account = requireNotNull(if (debit) linkedAccount else linkedAccount ?: fallbackAccount) {
+            "Vinculá una cuenta para registrar la compra."
         }
-        batch.commit().await()
+        val amount = FinanceUtils.round2(if (debit) FinanceUtils.convertCurrency(
+            amountInCardCurrency, card.currencyCode, account.currencyCode, exchangeRate
+        ) else amountInCardCurrency)
+        require(amount > 0.0)
+        val tx = FinanceTransaction(
+            userId = uid, amount = amount, currency = if (debit) account.currency else card.currency,
+            accountId = account.id, categoryId = categoryId, dateIso = dateIso,
+            note = note.trim().ifBlank { "Compra con ${card.alias} (•••• ${card.last4})" },
+            postings = listOf(if (debit) BalancePosting("accounts", account.id, -1.0) else BalancePosting("cards", card.id, 1.0))
+        )
+        storeCardMovement(uid, tx, pending, card.id)
     }
 
     suspend fun payCardDebt(
         card: BankCard,
         payAccount: WalletAccount,
         amountInAccountCurrency: Double,
-        exchangeRate: Double
+        exchangeRate: Double,
+        pending: Boolean = false
     ): Result<Unit> = safeWrite("cards/${card.id}", OperationType.UPDATE) {
         val uid = requireUserId()
-        require(amountInAccountCurrency > 0.0) { "El abono debe ser mayor a cero." }
-
-        val cleanPayAcc = FinanceUtils.round2(amountInAccountCurrency)
-        val payInCardCurrency = FinanceUtils.round2(
-            FinanceUtils.convertCurrency(cleanPayAcc, payAccount.currencyCode, card.currencyCode, exchangeRate)
-        )
-        val remainingDebt = FinanceUtils.round2((card.debtBalance - payInCardCurrency).coerceAtLeast(0.0))
-
-        val batch = db.batch()
-        batch.update(
-            userDoc(uid).collection("cards").document(card.id),
-            mapOf(
-                "debtBalance" to remainingDebt,
-                "updatedAt" to FieldValue.serverTimestamp()
-            )
-        )
-        batch.update(
-            userDoc(uid).collection("accounts").document(payAccount.id),
-            mapOf(
-                "balance" to FinanceUtils.round2(payAccount.balance - cleanPayAcc),
-                "updatedAt" to FieldValue.serverTimestamp()
-            )
-        )
+        val amount = FinanceUtils.round2(amountInAccountCurrency)
+        require(amount > 0.0)
+        val factor = FinanceUtils.convertCurrency(1.0, payAccount.currencyCode, card.currencyCode, exchangeRate)
+        require(FinanceUtils.round2(amount * factor) <= card.debtBalance) { "El abono supera la deuda actual." }
         val tx = FinanceTransaction(
-            userId = uid,
-            txType = TxType.EXPENSE.name,
-            amount = cleanPayAcc,
-            currency = payAccount.currency,
-            accountId = payAccount.id,
-            categoryId = "deudas",
-            note = "Pago tarjeta ${card.alias} (•••• ${card.last4})".take(160),
-            dateIso = FinanceUtils.todayIso()
+            userId = uid, amount = amount, currency = payAccount.currency, accountId = payAccount.id,
+            categoryId = "deudas", note = "Pago tarjeta ${card.alias} (•••• ${card.last4})", dateIso = FinanceUtils.todayIso(),
+            postings = listOf(BalancePosting("accounts", payAccount.id, -1.0), BalancePosting("cards", card.id, -factor))
         )
-        batch.set(userDoc(uid).collection("transactions").document(), tx.toCreateMap())
-        batch.commit().await()
+        storeCardMovement(uid, tx, pending)
+    }
+
+    private suspend fun storeCardMovement(uid: String, tx: FinanceTransaction, pending: Boolean, chargeCardId: String? = null) {
+        val user = userDoc(uid)
+        if (pending) {
+            val data = tx.toCreateMap().toMutableMap()
+            if (chargeCardId != null) data["chargeCardId"] = chargeCardId
+            user.collection("pendingTransactions").document().set(data).await()
+        } else {
+            val ref = user.collection("transactions").document()
+            db.runTransaction { operation ->
+                checkChargeCard(uid, operation, chargeCardId)
+                applyPostingChanges(uid, operation, tx.copy(amount = 0.0), tx.amount)
+                operation.set(ref, tx.toCreateMap())
+            }.await()
+        }
+    }
+
+    private fun checkChargeCard(uid: String, operation: com.google.firebase.firestore.Transaction, cardId: String?) {
+        if (cardId == null) return
+        val card = operation.get(userDoc(uid).collection("cards").document(cardId))
+        require(card.exists() && card.getBoolean("cardFrozen") != true) { "La tarjeta está congelada o ya no existe." }
     }
 
     suspend fun registerDeviceAndSyncRelease(
@@ -1301,17 +1291,6 @@ class DoracashRepository(
                 forceNotice = false
             )
             releaseRef.set(initRelease.toCreateMap()).await()
-        } else {
-            val currentRemote = (releaseSnap.getLong("latestVersionCode") ?: 1L).toInt()
-            if (safeVerCode > currentRemote) {
-                releaseRef.update(
-                    mapOf(
-                        "latestVersionCode" to safeVerCode,
-                        "latestVersionName" to safeVerName,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-            }
         }
     }
 

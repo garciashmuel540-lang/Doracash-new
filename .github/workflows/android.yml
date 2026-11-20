@@ -7,8 +7,10 @@ on:
       - 'gradle/**'
       - '*.kts'
       - '.github/workflows/android.yml'
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -21,26 +23,76 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-      - name: Preparar firma temporal de prueba
-        run: keytool -genkeypair -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=Android Debug"
-      - run: gradle assembleDebug --stacktrace
+      - name: Compilar y probar
+        run: |
+          keytool -genkeypair -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Doracash CI"
+          gradle assembleDebug testDebugUnitTest
       - uses: actions/upload-artifact@v4
         with:
-          name: Doracash-Android
+          name: Doracash-Android-prueba
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-      - name: Publicar base para actualizar con la firma personal
-        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publicar 1.1]')
+
+  publicar:
+    needs: apk
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency: android-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar versión y firma de distribución
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          SIGNING_CONFIGURED: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
           set -euo pipefail
-          cp app/build/outputs/apk/debug/app-debug.apk Doracash-base.apk
-          sha256sum Doracash-base.apk > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-          if gh release view doracash-1.1-base >/dev/null 2>&1; then
-            gh release upload doracash-1.1-base Doracash-base.apk SHA256SUMS.txt --clobber
+          version=$(sed -nE 's/^ *versionName = "([0-9.]+)".*/\1/p' app/build.gradle.kts)
+          code=$(sed -nE 's/^ *versionCode = ([0-9]+).*/\1/p' app/build.gradle.kts)
+          test -n "$version" && test -n "$code"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if gh release view "android-v$version" >/dev/null 2>&1; then
+            echo "La versión ya está publicada."
+          elif [[ "$SIGNING_CONFIGURED" != true ]]; then
+            echo "::warning::La publicación necesita la firma permanente de Doracash."
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then exit 1; fi
           else
-            gh release create doracash-1.1-base Doracash-base.apk SHA256SUMS.txt --prerelease --target "$GITHUB_SHA" --title "Doracash 1.1 · base para firma personal" --notes "Actualización sincronizada de Doracash 1.1. Incluye SHA256SUMS.txt; usar el instalador para firmar con tu llave permanente."
+            echo 'build=true' >> "$GITHUB_OUTPUT"
           fi
+      - uses: actions/setup-java@v4
+        if: steps.release.outputs.build == 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.release.outputs.build == 'true'
+        with:
+          gradle-version: '9.3.1'
+      - name: Firmar y publicar la actualización
+        if: steps.release.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          VERSION: ${{ steps.release.outputs.version }}
+          CODE: ${{ steps.release.outputs.code }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export KEYSTORE_PATH="$RUNNER_TEMP/doracash-signing"
+          trap 'rm -f "$KEYSTORE_PATH"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          unset KEYSTORE_B64
+          export KEY_ALIAS="${KEY_ALIAS:-doracash}" KEY_PASSWORD="${KEY_PASSWORD:-$STORE_PASSWORD}"
+          gradle assembleRelease
+          apk="Doracash-$CODE.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$signer" verify "$apk"
+          sha256sum "$apk" > SHA256SUMS.txt
+          gh release create "android-v$VERSION" "$apk" SHA256SUMS.txt --target "$GITHUB_SHA" --latest --title "Doracash $VERSION" --notes "Actualización Android firmada de Doracash."

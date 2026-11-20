@@ -425,3 +425,37 @@ test("Accounts, Transactions, ScheduledBills, Budgets, Goals, Reconciliations: K
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("devices").get());
   await assertFails(bob.collection("users").doc(ALICE_UID).collection("appMeta").doc("release").get());
 });
+
+test("Two phones can share a draft, settle it once, and keep its balance links private", async () => {
+  const assert = require("node:assert/strict");
+  const first = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const second = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const stranger = testEnv.authenticatedContext(BOB_UID).firestore();
+  const path = "users/" + ALICE_UID;
+  const now = new Date(Date.now() - 1000);
+  const posting = {collection: "accounts", documentId: "cash", factor: -1};
+  const movement = {userId: ALICE_UID, amount: 50, txType: "EXPENSE", currency: "NIO", accountId: "cash",
+    categoryId: "comida", note: "Almuerzo", dateIso: "2026-11-20", createdAt: now, updatedAt: now, postings: [posting]};
+  await assertSucceeds(first.doc(path + "/accounts/cash").set({userId: ALICE_UID, balance: 200, name: "Efectivo",
+    accountType: "CASH", currency: "NIO", iconKey: "cash", createdAt: now, updatedAt: now}));
+  await assertSucceeds(first.doc(path + "/pendingTransactions/lunch").set(movement));
+  assert.equal((await second.doc(path + "/accounts/cash").get()).get("balance"), 200);
+  const settle = db => db.runTransaction(async t => {
+    const draft = db.doc(path + "/pendingTransactions/lunch");
+    const snapshot = await t.get(draft);
+    if (!snapshot.exists) return;
+    const account = db.doc(path + "/accounts/cash");
+    const balance = (await t.get(account)).get("balance");
+    t.update(account, {balance: balance - snapshot.get("amount"), updatedAt: now});
+    t.set(db.doc(path + "/transactions/lunch"), snapshot.data());
+    t.delete(draft);
+  });
+  await Promise.all([assertSucceeds(settle(first)), assertSucceeds(settle(second))]);
+  assert.equal((await first.doc(path + "/accounts/cash").get()).get("balance"), 150);
+  await assertSucceeds(second.doc(path + "/transactions/lunch").update({note: "Almuerzo editado"}));
+  assert.equal((await first.doc(path + "/transactions/lunch").get()).get("note"), "Almuerzo editado");
+  await assertFails(second.doc(path + "/transactions/lunch").update({postings: [{...posting, factor: 1}]}));
+  await assertFails(first.doc(path + "/transactions/bad").set({...movement, postings: [{...posting, collection: "users"}]}));
+  await assertFails(stranger.doc(path + "/transactions/lunch").get());
+  await assertFails(stranger.doc(path + "/transactions/lunch").update({amount: 1}));
+});

@@ -430,15 +430,6 @@ fun DoraemonAssistantSheet(
                     }
                 }
 
-                if (chatState is DoraemonChatUiState.Error && chatState.message.contains("activar este teléfono")) {
-                    item {
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        TextButton(onClick = {
-                            val ok = com.example.auth.copyAppCheckCode(context)
-                            android.widget.Toast.makeText(context, if (ok) "Código privado copiado. Pegalo en Cloud Shell." else "Reintentá la consulta y volvé a copiar el código.", android.widget.Toast.LENGTH_LONG).show()
-                        }) { Text("Copiar código de activación") }
-                    }
-                }
                 if (chatState is DoraemonChatUiState.Error) {
                     item {
                         Surface(
