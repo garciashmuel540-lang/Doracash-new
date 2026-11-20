@@ -427,21 +427,39 @@ class DoracashRepository(
         batch.commit().await()
     }
 
-    suspend fun savePending(tx: FinanceTransaction): Result<Unit> = safeWrite("pendingTransactions", OperationType.CREATE) {
+    suspend fun savePending(tx: FinanceTransaction, goalName: String?): Result<Unit> = safeWrite("pendingTransactions", OperationType.CREATE) {
         val uid = requireUserId()
-        userDoc(uid).collection("pendingTransactions").document()
-            .set(tx.copy(userId = uid).toCreateMap()).await()
+        val data = tx.copy(userId = uid).toCreateMap().toMutableMap()
+        goalName?.takeIf { it.isNotBlank() }?.let { data["goalName"] = it.trim().take(80) }
+        userDoc(uid).collection("pendingTransactions").document().set(data).await()
     }
 
     suspend fun settlePending(id: String, rate: Double): Result<Unit> = safeWrite("pendingTransactions/$id", OperationType.UPDATE) {
         val user = userDoc(requireUserId())
         val draft = user.collection("pendingTransactions").document(id)
         db.runTransaction { transaction ->
-            val tx = transaction.get(draft).toObject(FinanceTransaction::class.java)
+            val record = transaction.get(draft)
+            val tx = record.toObject(FinanceTransaction::class.java)
                 ?: return@runTransaction
             val source = user.collection("accounts").document(tx.accountId)
             val account = requireNotNull(transaction.get(source).toObject(WalletAccount::class.java)) { "La cuenta de origen ya no existe." }
             require(account.currency == tx.currency) { "La moneda de la cuenta cambió." }
+            var category = tx.categoryId
+            if (tx.typeEnum != TxType.TRANSFER && CategoryCatalog.classificationOf(category) == EntryClassification.SAVINGS) {
+                val kind = CategoryCatalog.savingsTypeOf(category) ?: SavingsType.OTRO
+                val goals = user.collection("goals")
+                val linked = CategoryCatalog.linkedGoalId(category)
+                val goalRef = if (linked == null) goals.document() else goals.document(linked)
+                val value = FinanceUtils.convertCurrency(tx.amount, tx.currencyCode, CurrencyCode.NIO, rate)
+                if (linked != null) {
+                    val goal = requireNotNull(transaction.get(goalRef).toObject(SavingsGoal::class.java)) { "La meta vinculada ya no existe." }
+                    transaction.update(goalRef, "currentNio", FinanceUtils.round2(goal.currentNio + value), "updatedAt", FieldValue.serverTimestamp())
+                } else {
+                    transaction.set(goalRef, SavingsGoal(userId = tx.userId, name = record.getString("goalName") ?: kind.label,
+                        targetNio = 1.0, currentNio = FinanceUtils.round2(value), iconKey = kind.key).toCreateMap())
+                }
+                category = CategoryCatalog.buildSavingsCategoryId(kind, goalRef.id)
+            }
             if (tx.typeEnum == TxType.TRANSFER) {
                 val dest = user.collection("accounts").document(requireNotNull(tx.toAccountId))
                 require(dest != source)
@@ -451,7 +469,7 @@ class DoracashRepository(
             }
             val delta = if (tx.typeEnum == TxType.INCOME) tx.amount else -tx.amount
             transaction.update(source, "balance", FinanceUtils.round2(account.balance + delta), "updatedAt", FieldValue.serverTimestamp())
-            transaction.set(user.collection("transactions").document(id), tx.toCreateMap())
+            transaction.set(user.collection("transactions").document(id), tx.copy(categoryId = category).toCreateMap())
             transaction.delete(draft)
         }.await()
         Unit

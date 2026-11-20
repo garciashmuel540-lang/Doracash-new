@@ -924,7 +924,7 @@ class DoracashViewModel(
         repository.removeSyncedDevice(deviceId)
     }
 
-    fun savePending(tx: FinanceTransaction) = launchAction("Movimiento pendiente guardado") { repository.savePending(tx) }
+    fun savePending(tx: FinanceTransaction, goalName: String?) = launchAction("Movimiento pendiente guardado") { repository.savePending(tx, goalName) }
     fun settlePending(id: String, rate: Double) = launchAction("Movimiento realizado") { repository.settlePending(id, rate) }
     fun editTransaction(tx: FinanceTransaction, note: String, date: String) = launchAction("Movimiento actualizado") {
         repository.editTransaction(tx, note, date)

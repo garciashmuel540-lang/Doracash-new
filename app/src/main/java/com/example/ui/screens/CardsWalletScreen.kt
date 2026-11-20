@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui.screens
 
 import android.app.Activity
@@ -399,7 +401,7 @@ fun CardsWalletScreen(
                         }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         StatusPill(
                             label = when (googlePayStatus) {
                                 GooglePayReadyStatus.Checking -> "GPay: ..."
@@ -407,7 +409,7 @@ fun CardsWalletScreen(
                                 is GooglePayReadyStatus.NotReady -> "GPay: Config"
                             },
                             active = googlePayStatus is GooglePayReadyStatus.Ready,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
                         )
                         StatusPill(
                             label = if (walletStatus.isGoogleWalletInstalled || walletStatus.isGooglePayInstalled) {
@@ -416,7 +418,7 @@ fun CardsWalletScreen(
                                 "Wallet: Obtener"
                             },
                             active = walletStatus.isGoogleWalletInstalled || walletStatus.isGooglePayInstalled,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
                         )
                         StatusPill(
                             label = when {
@@ -425,12 +427,12 @@ fun CardsWalletScreen(
                                 else -> "NFC: Off"
                             },
                             active = walletStatus.isNfcEnabled,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
                         )
                         StatusPill(
                             label = if (walletStatus.isDeviceSecure) "PIN: OK" else "Sin PIN",
                             active = walletStatus.isDeviceSecure,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
                         )
                     }
 
@@ -908,7 +910,7 @@ private fun BankCardDeckItem(
                 }
 
                 // Toggleable status badges
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                     FilterChip(
                         selected = card.googleWalletLinked,
                         onClick = onToggleWalletLink,

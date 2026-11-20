@@ -187,8 +187,9 @@ service cloud.firestore {
         allow get: if isOwner(userId) && isValidId(transactionId);
         allow create: if isOwner(userId) && isValidId(transactionId) &&
                          incoming().userId == userId &&
+                         (!('goalName' in incoming()) || (incoming().goalName is string && incoming().goalName.size() <= 80)) &&
                          incoming().keys().hasAll(['userId', 'txType', 'amount', 'currency', 'accountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'txType', 'amount', 'currency', 'accountId', 'toAccountId', 'categoryId', 'note', 'dateIso', 'goalName', 'createdAt', 'updatedAt']) &&
                          isValidTransaction(incoming()) &&
                          isValidTimestamp(incoming().createdAt) &&
                          isValidTimestamp(incoming().updatedAt);

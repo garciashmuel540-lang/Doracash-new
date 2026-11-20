@@ -400,7 +400,7 @@ private fun AuthenticatedDoracashShell(
                                     selected = currentTab == tab,
                                     onClick = { currentTab = tab },
                                     icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                    label = { Text(tab.label, maxLines = 1) },
+                                    label = { Text(if (tab == DoracashTab.TRANSACTIONS) "Movs." else tab.label, maxLines = 1) },
                                     modifier = Modifier.testTag("nav_${tab.route}")
                                 )
                             }
@@ -499,7 +499,7 @@ private fun AuthenticatedDoracashShell(
                                     DoracashTab.DASHBOARD -> DashboardScreen(
                                         snapshot = data,
                                         onEdit = viewModel::editTransaction,
-                                        onSettle = { viewModel.settlePending(it, snapshot.profile.exchangeRate) },
+                                        onSettle = { viewModel.settlePending(it, data.profile.exchangeRate) },
                                         onOpenTxModal = { txModalType = it },
                                         onNavigateTab = { currentTab = DoracashTab.fromRoute(it) },
                                         onPayBill = { occ ->
@@ -646,7 +646,7 @@ private fun AuthenticatedDoracashShell(
                         exchangeRate = snapshot.profile.exchangeRate,
                         onDismiss = { txModalType = null },
                         onSave = { t, amt, acc, toAcc, catId, note, date, sType, targetGoal, customSavingsName, applyAutoDebit, pending ->
-                            if (pending) viewModel.savePending(com.example.data.FinanceTransaction(txType = t.name, amount = FinanceUtils.round2(amt), currency = acc.currency, accountId = acc.id, toAccountId = toAcc?.id, categoryId = catId, note = note, dateIso = date)) else viewModel.addTransaction(
+                            if (pending) viewModel.savePending(com.example.data.FinanceTransaction(txType = t.name, amount = FinanceUtils.round2(amt), currency = acc.currency, accountId = acc.id, toAccountId = toAcc?.id, categoryId = catId, note = note, dateIso = date), customSavingsName) else viewModel.addTransaction(
                                 txType = t,
                                 amount = amt,
                                 account = acc,

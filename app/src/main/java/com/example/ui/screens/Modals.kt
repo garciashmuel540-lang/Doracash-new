@@ -328,15 +328,14 @@ fun TransactionModalDialog(
                         .testTag("tx_note_input")
                 )
 
-                val supportsPending = txType == TxType.TRANSFER || classification != EntryClassification.SAVINGS
-                if (supportsPending) {
+                Column {
                     Text("Estado del movimiento", style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = !pending, onClick = { pending = false }, label = { Text("Realizado") })
                         FilterChip(selected = pending, onClick = { pending = true }, label = { Text("Pendiente") })
                     }
                 }
-                if (txType == TxType.INCOME && hasEligibleAutoCards && !(supportsPending && pending)) {
+                if (txType == TxType.INCOME && hasEligibleAutoCards && !pending) {
                     val liveAmt = amountStr.toDoubleOrNull() ?: 0.0
                     val previewDebits = remember(liveAmt, selectedAcc, cards, exchangeRate) {
                         FinanceUtils.planAutoCardDebits(liveAmt, selectedAcc.currencyCode, cards, exchangeRate)
@@ -426,7 +425,7 @@ fun TransactionModalDialog(
                             customSavingsName.trim().takeIf { it.isNotBlank() }
                         } else null,
                         txType == TxType.INCOME && applyAutoCardDebit,
-                        pending && (txType == TxType.TRANSFER || classification != EntryClassification.SAVINGS)
+                        pending
                     )
                 },
                 enabled = amt > 0.0 && validDate && validTransfer,
