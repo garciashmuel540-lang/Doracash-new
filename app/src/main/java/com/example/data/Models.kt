@@ -780,7 +780,8 @@ object FinanceUtils {
         var remainingIncome = round2(incomeAmount)
         val eligible = cards
             .filter {
-                it.autoDebitEnabled &&
+                it.cardKindEnum != CardKind.DEBIT &&
+                    it.autoDebitEnabled &&
                     !it.cardFrozen &&
                     it.debtBalance > 0.005 &&
                     it.autoDebitModeEnum != AutoDebitMode.MANUAL

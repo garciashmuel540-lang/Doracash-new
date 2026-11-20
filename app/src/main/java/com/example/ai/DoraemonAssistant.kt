@@ -1,5 +1,6 @@
 package com.example.ai
 
+import com.example.data.CardKind
 import com.example.data.BillStatus
 import com.example.data.CategoryCatalog
 import com.example.data.CurrencyCode
@@ -464,6 +465,10 @@ class DoraemonAssistant {
             if (snapshot.cards.isNotEmpty()) {
                 appendLine("Tarjetas y Wallet (${snapshot.cards.size}):")
                 snapshot.cards.forEach { c ->
+                    if (c.cardKindEnum == CardKind.DEBIT) {
+                        appendLine("- id=${c.id} | alias='${c.alias}' | tipo=DEBIT | moneda=${c.currency} | cuentaId=${c.linkedAccountId}")
+                        return@forEach
+                    }
                     val dueDays = FinanceUtils.daysUntilMonthDay(c.dueDay)
                     val utilPct = if (c.creditLimit > 0.0) ((c.debtBalance / c.creditLimit) * 100).toInt() else 0
                     appendLine(
@@ -508,6 +513,7 @@ class DoraemonAssistant {
             appendLine("Cuentas: " + snapshot.accounts.joinToString("; ") { "${it.name}=${FinanceUtils.formatMoney(it.balance, it.currencyCode)}" })
             if (snapshot.cards.isNotEmpty()) {
                 appendLine("Tarjetas: " + snapshot.cards.joinToString("; ") { c ->
+                    if (c.cardKindEnum == CardKind.DEBIT) return@joinToString "${c.alias} (débito)"
                     val dueDays = FinanceUtils.daysUntilMonthDay(c.dueDay)
                     val util = if (c.creditLimit > 0.0) " uso=${((c.debtBalance / c.creditLimit) * 100).toInt()}%" else ""
                     "${c.alias}(••••${c.last4}) deuda=${FinanceUtils.formatMoney(c.debtBalance, c.currencyCode)}$util venceEn=${dueDays}d"

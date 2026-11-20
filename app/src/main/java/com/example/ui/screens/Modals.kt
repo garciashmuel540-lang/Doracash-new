@@ -130,7 +130,7 @@ fun TransactionModalDialog(
     var selectedCatId by remember(txType) { mutableStateOf(normalCategories.first().id) }
     val hasEligibleAutoCards = remember(cards) {
         cards.any {
-            it.autoDebitEnabled &&
+            it.cardKindEnum != CardKind.DEBIT && it.autoDebitEnabled &&
                 !it.cardFrozen &&
                 it.debtBalance > 0.005 &&
                 it.autoDebitModeEnum != AutoDebitMode.MANUAL
@@ -1326,48 +1326,50 @@ fun CardEditDialog(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = debtStr,
-                        onValueChange = { debtStr = it },
-                        label = { Text("Deuda actual (${currency.symbol})") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("card_debt_input")
-                    )
-                    OutlinedTextField(
-                        value = limitStr,
-                        onValueChange = { limitStr = it },
-                        label = { Text("Límite (${currency.symbol}, opc.)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                if (cardKind != CardKind.DEBIT) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = debtStr,
+                            onValueChange = { debtStr = it },
+                            label = { Text("Deuda actual (${currency.symbol})") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_debt_input")
+                        )
+                        OutlinedTextField(
+                            value = limitStr,
+                            onValueChange = { limitStr = it },
+                            label = { Text("Límite (${currency.symbol}, opc.)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = cutoffDayStr,
-                        onValueChange = { cutoffDayStr = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Día corte (1-31)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = dueDayStr,
-                        onValueChange = { dueDayStr = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Día pago (1-31)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f)
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = cutoffDayStr,
+                            onValueChange = { cutoffDayStr = it.filter { c -> c.isDigit() }.take(2) },
+                            label = { Text("Día corte (1-31)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = dueDayStr,
+                            onValueChange = { dueDayStr = it.filter { c -> c.isDigit() }.take(2) },
+                            label = { Text("Día pago (1-31)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
 
                 if (accounts.isNotEmpty()) {
@@ -1399,51 +1401,53 @@ fun CardEditDialog(
                     Switch(checked = googleWalletLinked, onCheckedChange = { googleWalletLinked = it })
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Auto-debitar de mis ingresos", style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = "Descuenta tu deuda cuando registres un ingreso",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = autoDebitEnabled,
-                        onCheckedChange = { autoDebitEnabled = it },
-                        modifier = Modifier.testTag("card_auto_debit_switch")
-                    )
-                }
-
-                if (autoDebitEnabled) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(AutoDebitMode.entries.filter { it != AutoDebitMode.MANUAL }) { mode ->
-                            FilterChip(
-                                selected = autoDebitMode == mode,
-                                onClick = { autoDebitMode = mode },
-                                label = { Text(mode.label) }
+                if (cardKind != CardKind.DEBIT) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Auto-debitar de mis ingresos", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = "Descuenta tu deuda cuando registres un ingreso",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    }
-                    if (autoDebitMode == AutoDebitMode.PERCENTAGE || autoDebitMode == AutoDebitMode.FIXED_AMOUNT) {
-                        OutlinedTextField(
-                            value = autoDebitValueStr,
-                            onValueChange = { autoDebitValueStr = it },
-                            label = {
-                                Text(
-                                    if (autoDebitMode == AutoDebitMode.PERCENTAGE) "Porcentaje del ingreso (%)"
-                                    else "Cuota fija por ingreso (${currency.symbol})"
-                                )
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
+                        Switch(
+                            checked = autoDebitEnabled,
+                            onCheckedChange = { autoDebitEnabled = it },
+                            modifier = Modifier.testTag("card_auto_debit_switch")
                         )
+                    }
+
+                    if (autoDebitEnabled) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(AutoDebitMode.entries.filter { it != AutoDebitMode.MANUAL }) { mode ->
+                                FilterChip(
+                                    selected = autoDebitMode == mode,
+                                    onClick = { autoDebitMode = mode },
+                                    label = { Text(mode.label) }
+                                )
+                            }
+                        }
+                        if (autoDebitMode == AutoDebitMode.PERCENTAGE || autoDebitMode == AutoDebitMode.FIXED_AMOUNT) {
+                            OutlinedTextField(
+                                value = autoDebitValueStr,
+                                onValueChange = { autoDebitValueStr = it },
+                                label = {
+                                    Text(
+                                        if (autoDebitMode == AutoDebitMode.PERCENTAGE) "Porcentaje del ingreso (%)"
+                                        else "Cuota fija por ingreso (${currency.symbol})"
+                                    )
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
 
@@ -1478,8 +1482,8 @@ fun CardEditDialog(
                         debt.coerceAtLeast(0.0),
                         limit.coerceAtLeast(0.0),
                         linkedAccountId,
-                        autoDebitEnabled,
-                        if (autoDebitEnabled) autoDebitMode else AutoDebitMode.MANUAL,
+                        autoDebitEnabled && cardKind != CardKind.DEBIT,
+                        if (autoDebitEnabled && cardKind != CardKind.DEBIT) autoDebitMode else AutoDebitMode.MANUAL,
                         autoVal.coerceAtLeast(0.0),
                         googleWalletLinked,
                         existing?.cardFrozen ?: false,

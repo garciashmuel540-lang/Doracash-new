@@ -171,13 +171,14 @@ fun CardsWalletScreen(
         }
     }
 
+    val billingCards = remember(snapshot.cards) { snapshot.cards.filter { it.cardKindEnum != CardKind.DEBIT } }
     val totalDebtDisp = remember(snapshot.cards, disp, rate) {
-        snapshot.cards.sumOf {
+        billingCards.sumOf {
             FinanceUtils.convertCurrency(it.debtBalance, it.currencyCode, disp, rate)
         }
     }
     val totalLimitDisp = remember(snapshot.cards, disp, rate) {
-        snapshot.cards.filter { it.creditLimit > 0.0 }.sumOf {
+        billingCards.filter { it.creditLimit > 0.0 }.sumOf {
             FinanceUtils.convertCurrency(it.creditLimit, it.currencyCode, disp, rate)
         }
     }
@@ -186,7 +187,7 @@ fun CardsWalletScreen(
         (totalDebtDisp / totalLimitDisp).toFloat().coerceIn(0f, 1f)
     } else 0f
     val autoDebitActiveCount = remember(snapshot.cards) {
-        snapshot.cards.count { it.autoDebitEnabled && !it.cardFrozen && it.autoDebitModeEnum != AutoDebitMode.MANUAL }
+        billingCards.count { it.autoDebitEnabled && !it.cardFrozen && it.autoDebitModeEnum != AutoDebitMode.MANUAL }
     }
 
     var simIncomeText by remember { mutableStateOf("15000") }
@@ -267,48 +268,50 @@ fun CardsWalletScreen(
                         }
                     }
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Surface(
-                            color = DoraCollarRed.copy(alpha = 0.10f),
-                            shape = RoundedCornerShape(18.dp),
-                            modifier = Modifier.weight(1f)
+                    if (billingCards.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "Deuda en Tarjetas",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = DoraCollarRed,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(totalDebtDisp, disp),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = DoraCollarRed,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
+                            Surface(
+                                color = DoraCollarRed.copy(alpha = 0.10f),
+                                shape = RoundedCornerShape(18.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "Deuda en Tarjetas",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DoraCollarRed,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(totalDebtDisp, disp),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = DoraCollarRed,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
                             }
-                        }
-                        Surface(
-                            color = DoraMintGreen.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(18.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "Crédito Libre",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = DoraMintGreen,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(totalAvailDisp, disp),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = DoraMintGreen,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
+                            Surface(
+                                color = DoraMintGreen.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(18.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "Crédito Libre",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DoraMintGreen,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(totalAvailDisp, disp),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = DoraMintGreen,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
                             }
                         }
                     }
@@ -504,7 +507,7 @@ fun CardsWalletScreen(
         }
 
         // 3. Auto-Debit Income Simulator
-        if (snapshot.cards.isNotEmpty()) {
+        if (billingCards.isNotEmpty()) {
             item {
                 Card(
                     shape = RoundedCornerShape(26.dp),
@@ -823,51 +826,53 @@ private fun BankCardDeckItem(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Column {
-                            Text(
-                                text = if (card.cardKindEnum == CardKind.DEBIT && card.debtBalance <= 0.0) "Deuda / Pendiente" else "Deuda actual",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                            Text(
-                                text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(card.debtBalance, card.currencyCode),
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-                        if (card.creditLimit > 0.0) {
-                            Column(horizontalAlignment = Alignment.End) {
+                    if (card.cardKindEnum != CardKind.DEBIT) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Column {
                                 Text(
-                                    text = "Disponible",
+                                    text = "Deuda actual",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.White.copy(alpha = 0.8f)
                                 )
                                 Text(
-                                    text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(card.availableCredit, card.currencyCode),
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(card.debtBalance, card.currencyCode),
+                                    style = MaterialTheme.typography.headlineMedium,
                                     color = Color.White,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.ExtraBold
                                 )
                             }
+                            if (card.creditLimit > 0.0) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "Disponible",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                    Text(
+                                        text = if (privacyMasked) "••••••" else FinanceUtils.formatMoney(card.availableCredit, card.currencyCode),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
-                    }
 
-                    if (card.creditLimit > 0.0) {
-                        LinearProgressIndicator(
-                            progress = { cardUtil },
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.28f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(50))
-                        )
+                        if (card.creditLimit > 0.0) {
+                            LinearProgressIndicator(
+                                progress = { cardUtil },
+                                color = Color.White,
+                                trackColor = Color.White.copy(alpha = 0.28f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(50))
+                            )
+                        }
                     }
                 }
             }
@@ -882,12 +887,14 @@ private fun BankCardDeckItem(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Corte día ${card.cutoffDay} (en ${cutoffDays}d) · Pago día ${card.dueDay} (en ${dueDays}d)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (dueDays <= 3 && card.debtBalance > 0.0) DoraCollarRed else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = if (dueDays <= 3 && card.debtBalance > 0.0) FontWeight.Bold else FontWeight.Normal
-                    )
+                    if (card.cardKindEnum != CardKind.DEBIT) {
+                        Text(
+                            text = "Corte día ${card.cutoffDay} (en ${cutoffDays}d) · Pago día ${card.dueDay} (en ${dueDays}d)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (dueDays <= 3 && card.debtBalance > 0.0) DoraCollarRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (dueDays <= 3 && card.debtBalance > 0.0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                     if (!linkedAccountName.isNullOrBlank()) {
                         Text(
                             text = linkedAccountName,
@@ -909,24 +916,26 @@ private fun BankCardDeckItem(
                         },
                         label = { Text(if (card.googleWalletLinked) "En Wallet" else "+ Wallet", maxLines = 1) }
                     )
-                    FilterChip(
-                        selected = card.autoDebitEnabled,
-                        onClick = onToggleAutoDebit,
-                        leadingIcon = {
-                            Icon(Icons.Filled.Autorenew, contentDescription = null, modifier = Modifier.size(16.dp))
-                        },
-                        label = {
-                            val txt = if (card.autoDebitEnabled) {
-                                when (card.autoDebitModeEnum) {
-                                    AutoDebitMode.FULL_DEBT -> "Auto: Total"
-                                    AutoDebitMode.PERCENTAGE -> "Auto: ${card.autoDebitValue.toInt()}%"
-                                    AutoDebitMode.FIXED_AMOUNT -> "Auto: Cuota"
-                                    AutoDebitMode.MANUAL -> "Manual"
-                                }
-                            } else "Auto: Off"
-                            Text(txt, maxLines = 1)
-                        }
-                    )
+                    if (card.cardKindEnum != CardKind.DEBIT) {
+                        FilterChip(
+                            selected = card.autoDebitEnabled,
+                            onClick = onToggleAutoDebit,
+                            leadingIcon = {
+                                Icon(Icons.Filled.Autorenew, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            label = {
+                                val txt = if (card.autoDebitEnabled) {
+                                    when (card.autoDebitModeEnum) {
+                                        AutoDebitMode.FULL_DEBT -> "Auto: Total"
+                                        AutoDebitMode.PERCENTAGE -> "Auto: ${card.autoDebitValue.toInt()}%"
+                                        AutoDebitMode.FIXED_AMOUNT -> "Auto: Cuota"
+                                        AutoDebitMode.MANUAL -> "Manual"
+                                    }
+                                } else "Auto: Off"
+                                Text(txt, maxLines = 1)
+                            }
+                        )
+                    }
                     FilterChip(
                         selected = card.cardFrozen,
                         onClick = onToggleFrozen,
@@ -960,18 +969,20 @@ private fun BankCardDeckItem(
                         Text("Cargo", maxLines = 1)
                     }
 
-                    Button(
-                        onClick = onPay,
-                        enabled = card.debtBalance > 0.0,
-                        colors = ButtonDefaults.buttonColors(containerColor = DoraMintGreen, contentColor = Color.White),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                    ) {
-                        Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Pagar", maxLines = 1)
+                    if (card.cardKindEnum != CardKind.DEBIT) {
+                        Button(
+                            onClick = onPay,
+                            enabled = card.debtBalance > 0.0,
+                            colors = ButtonDefaults.buttonColors(containerColor = DoraMintGreen, contentColor = Color.White),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                        ) {
+                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pagar", maxLines = 1)
+                        }
                     }
 
                     IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
