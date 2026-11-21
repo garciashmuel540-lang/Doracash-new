@@ -9,14 +9,87 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cd "$work"
 fetch() { curl --proto '=https' -fsSL --retry 2 "$1" -o "$2"; }
-fetch "$raw/main/app/build.gradle.kts" build.gradle.kts
+prepare_github() {
+  # En una sesión de Cloud Shell sin gh, usar el binario oficial solo en el directorio temporal.
+  if ! command -v gh >/dev/null; then
+    case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; *) exit 1 ;; esac
+    fetch 'https://api.github.com/repos/cli/cli/releases/latest' gh.json
+    ghname=$(jq -er --arg arch "$arch" '.assets[].name | select(endswith("_linux_"+$arch+".tar.gz"))' gh.json)
+    ghtag=$(jq -er '.tag_name | select(test("^v[0-9]+(\\.[0-9]+){2}$"))' gh.json)
+    ghdigest=$(jq -er --arg name "$ghname" '.assets[] | select(.name==$name) | .digest | capture("^sha256:(?<sha>[a-f0-9]{64})$").sha' gh.json)
+    fetch "https://github.com/cli/cli/releases/download/$ghtag/$ghname" gh.tgz
+    echo "$ghdigest  gh.tgz" | sha256sum --check -
+    tar -xOzf gh.tgz "${ghname%.tar.gz}/bin/gh" > gh
+    chmod 700 gh
+    export PATH="$work:$PATH"
+  fi
+  if ! gh auth status --hostname github.com >/dev/null 2>&1; then
+    gh auth login --hostname github.com --git-protocol https --web
+  fi
+}
+
+site=${DORACASH_CHAT_SITE_KEY:-}
+key_path=app/src/main/res/values/firebase_applet_config.xml
+read_site() {
+  python3 -c 'import sys, xml.etree.ElementTree as E; print(next(x.text for x in E.parse(sys.stdin).getroot() if x.get("name") == "recaptcha_site_key"))'
+}
+if [[ -n $site ]]; then
+  [[ $site =~ ^[A-Za-z0-9_-]+$ ]]
+  prepare_github
+  echo 'Comprobando la clave pública que llevará el APK…'
+  git_auth() { git -c credential.helper= -c 'credential.helper=!gh auth git-credential' "$@"; }
+  git_auth clone --quiet --depth 1 --branch main "https://github.com/$repo.git" source
+  if [[ $(read_site < "source/$key_path") != "$site" ]]; then
+    python3 - "$site" "source/$key_path" "source/app/build.gradle.kts" <<'PYTHON'
+from pathlib import Path
+import re
+import sys
+
+site, xml, gradle = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
+def replace_once(pattern, fn, text):
+    result, count = re.subn(pattern, fn, text, flags=re.M)
+    if count != 1:
+        sys.exit("No se pudo identificar el recurso o la versión de forma única.")
+    return result
+
+xml.write_text(replace_once(r'(<string name="recaptcha_site_key"[^>]*>)[^<]+(</string>)',
+                            lambda m: m[1] + site + m[2], xml.read_text()))
+text = replace_once(r'^(\s*versionCode = )(\d+)$', lambda m: m[1] + str(int(m[2]) + 1), gradle.read_text())
+text = replace_once(r'^(\s*versionName = ")(\d+(?:\.\d+)*\.)(\d+)("$)',
+                    lambda m: m[1] + m[2] + str(int(m[3]) + 1) + m[4], text)
+gradle.write_text(text)
+PYTHON
+    [[ $(read_site < "source/$key_path") == "$site" ]]
+    git -C source add "$key_path" app/build.gradle.kts
+    git -C source -c user.name='Doracash Android' -c user.email='doracash@users.noreply.github.com' commit --quiet -m 'Compilar Doracash con la clave pública para los APK de GitHub'
+    git_auth -C source push origin HEAD:main
+  fi
+  cp source/app/build.gradle.kts build.gradle.kts
+else
+  fetch "$raw/main/app/build.gradle.kts" build.gradle.kts
+fi
 version=$(sed -nE 's/^ *versionName = "([0-9]+(\.[0-9]+){1,3})".*/\1/p' build.gradle.kts)
 code=$(sed -nE 's/^ *versionCode = ([1-9][0-9]*).*/\1/p' build.gradle.kts)
 [[ -n $version && -n $code ]]
 tag="android-v$version"
 apk="Doracash-$code.apk"
+verify_release_site() {
+  if [[ -n $site ]]; then
+    local revision
+    revision=$(jq -er '.target_commitish | select(test("^[a-f0-9]{40}$"))' "$1")
+    fetch "$raw/$revision/$key_path" packaged-key.xml
+    [[ $(read_site < packaged-key.xml) == "$site" ]] || { echo 'El APK de esta versión corresponde a otra clave.' >&2; return 1; }
+  fi
+}
+confirm_publication() {
+  verify_release_site "$1"
+  if [[ -n $site ]]; then
+    printf '%s\n' "$site" > "${DORACASH_CHAT_RECEIPT:?Falta el comprobante de publicación}"
+  fi
+}
 if curl -fsS "$api/releases/tags/$tag" -o release.json 2>/dev/null &&
    jq -e --arg apk "$apk" '(.draft or .prerelease) == false and any(.assets[]; .name == $apk and .size > 0)' release.json >/dev/null; then
+  confirm_publication release.json
   echo "La versión $version ya está publicada: https://doracash-new.vercel.app"
   exit 0
 fi
@@ -27,7 +100,22 @@ if [[ ! -s "$identity/key.p12" || ! -s "$identity/password" ]]; then
   exit 1
 fi
 base="firma-local-v$version"
-fetch "$api/releases/tags/$base" base.json
+if [[ -n $site ]]; then
+  echo "Esperando la compilación de Doracash $version en GitHub. Dejá abierta esta terminal."
+  for ((attempt=0; attempt<120; attempt++)); do
+    if gh api "repos/$repo/releases/tags/$base" > base.json 2>/dev/null; then break; fi
+    if gh api "repos/$repo/releases/tags/$tag" > stable.json 2>/dev/null &&
+       jq -e --arg apk "$apk" '(.draft or .prerelease) == false and any(.assets[]; .name==$apk and .size>0)' stable.json >/dev/null; then
+      confirm_publication stable.json
+      exit 0
+    fi
+    sleep 15
+  done
+  [[ -s base.json ]] || { echo 'GitHub todavía no publicó esta compilación. Revisá Actions y volvé a ejecutar el mismo comando.' >&2; exit 1; }
+  verify_release_site base.json
+else
+  fetch "$api/releases/tags/$base" base.json
+fi
 commit=$(jq -er '.target_commitish | select(test("^[a-f0-9]{40}$"))' base.json)
 archive="Doracash-para-firmar-$code.zip"
 digest=$(jq -er --arg name "$archive" '.assets[] | select(.name == $name) | .digest | capture("^sha256:(?<sha>[a-f0-9]{64})$").sha' base.json)
@@ -66,23 +154,15 @@ if ! jq -e --arg fp "$sha1" 'any(.certificates[]?; (.shaHash | ascii_upcase | gs
 fi
 rm -f google-token
 
-# En una sesión de Cloud Shell sin gh, usar el binario oficial solo en el directorio temporal.
-if ! command -v gh >/dev/null; then
-  case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; *) exit 1 ;; esac
-  fetch 'https://api.github.com/repos/cli/cli/releases/latest' gh.json
-  ghname=$(jq -er --arg arch "$arch" '.assets[].name | select(endswith("_linux_"+$arch+".tar.gz"))' gh.json)
-  ghtag=$(jq -er '.tag_name | select(test("^v[0-9]+(\\.[0-9]+){2}$"))' gh.json)
-  ghdigest=$(jq -er --arg name "$ghname" '.assets[] | select(.name==$name) | .digest | capture("^sha256:(?<sha>[a-f0-9]{64})$").sha' gh.json)
-  fetch "https://github.com/cli/cli/releases/download/$ghtag/$ghname" gh.tgz
-  echo "$ghdigest  gh.tgz" | sha256sum --check -
-  tar -xOzf gh.tgz "${ghname%.tar.gz}/bin/gh" > gh
-  chmod 700 gh
-  export PATH="$work:$PATH"
-fi
-if ! gh auth status --hostname github.com >/dev/null 2>&1; then
-  gh auth login --hostname github.com --git-protocol https --web
-fi
+prepare_github
 sha256sum "$apk" > SHA256SUMS.txt
 gh release create "$tag" "$apk" SHA256SUMS.txt --repo "$repo" --target "$commit" --latest --title "Doracash $version" --notes "Actualización Android firmada de Doracash."
+if [[ -n $site ]]; then
+  gh api "repos/$repo/releases/tags/$tag" > stable.json
+  jq -e --arg apk "$apk" '(.draft or .prerelease) == false and any(.assets[]; .name==$apk and .size>0)' stable.json >/dev/null
+  confirm_publication stable.json
+fi
 echo 'La actualización ya se puede descargar en https://doracash-new.vercel.app'
-if command -v cloudshell >/dev/null; then cloudshell download "$HOME/Doracash/$apk"; fi
+if [[ -z $site ]] && command -v cloudshell >/dev/null; then
+  cloudshell download "$HOME/Doracash/$apk" || echo 'Podés descargar el APK desde el enlace anterior.'
+fi
