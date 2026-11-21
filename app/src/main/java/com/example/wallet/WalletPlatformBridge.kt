@@ -12,15 +12,10 @@ import android.provider.Settings
 data class DeviceWalletStatus(
     val hasNfcHardware: Boolean,
     val isNfcEnabled: Boolean,
-    val hasHceTapToPay: Boolean,
     val isGoogleWalletInstalled: Boolean,
     val isGooglePayInstalled: Boolean,
     val isDeviceSecure: Boolean
-) {
-    val readyForTapToPay: Boolean
-        get() = hasNfcHardware && isNfcEnabled && hasHceTapToPay &&
-            (isGoogleWalletInstalled || isGooglePayInstalled)
-}
+)
 
 object WalletPlatformBridge {
     private const val GOOGLE_WALLET_PACKAGE = "com.google.android.apps.walletnfcrel"
@@ -32,7 +27,6 @@ object WalletPlatformBridge {
         val nfcAdapter = runCatching { NfcAdapter.getDefaultAdapter(context) }.getOrNull()
         val hasNfc = nfcAdapter != null || pm.hasSystemFeature(PackageManager.FEATURE_NFC)
         val nfcEnabled = nfcAdapter?.isEnabled == true
-        val hasHce = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)
         val walletInstalled = isPackageInstalled(pm, GOOGLE_WALLET_PACKAGE)
         val gpayInstalled = isPackageInstalled(pm, GOOGLE_PAY_PACKAGE)
         val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
@@ -41,7 +35,6 @@ object WalletPlatformBridge {
         return DeviceWalletStatus(
             hasNfcHardware = hasNfc,
             isNfcEnabled = nfcEnabled,
-            hasHceTapToPay = hasHce,
             isGoogleWalletInstalled = walletInstalled,
             isGooglePayInstalled = gpayInstalled,
             isDeviceSecure = deviceSecure
@@ -61,16 +54,7 @@ object WalletPlatformBridge {
             }
         }
 
-        val playStoreIntent = Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("https://play.google.com/store/apps/details?id=$GOOGLE_WALLET_PACKAGE")
-        ).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        return runCatching {
-            context.startActivity(playStoreIntent)
-            "Google Wallet no instalado; abriendo Google Play"
-        }
+        return openGooglePayMethods(context)
     }
 
     fun openGooglePayMethods(context: Context): Result<String> {

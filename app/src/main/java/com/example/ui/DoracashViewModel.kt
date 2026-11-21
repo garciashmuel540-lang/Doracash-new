@@ -480,7 +480,7 @@ class DoracashViewModel(
                             autoDebitEnabled = autoOn,
                             autoDebitMode = mode,
                             autoDebitValue = autoVal,
-                            googleWalletLinked = existing?.googleWalletLinked ?: true,
+                            googleWalletLinked = existing?.googleWalletLinked ?: false,
                             cardFrozen = existing?.cardFrozen ?: false,
                             cutoffDay = existing?.cutoffDay ?: 15,
                             dueDay = existing?.dueDay ?: 5,
@@ -837,7 +837,7 @@ class DoracashViewModel(
     }
 
     fun toggleCardWalletLink(card: BankCard) = launchAction(
-        if (card.googleWalletLinked) "Desvinculada de Google Wallet" else "Marcada en Google Wallet"
+        if (card.googleWalletLinked) "Se quitó la marca de Wallet en Doracash" else "Tarjeta marcada en Doracash"
     ) {
         repository.updateCardFlags(cardId = card.id, googleWalletLinked = !card.googleWalletLinked)
     }

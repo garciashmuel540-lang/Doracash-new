@@ -1,5 +1,10 @@
 package com.example
 
+import android.app.Application
+import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
+import com.example.wallet.WalletPlatformBridge
+import org.robolectric.Shadows.shadowOf
 import com.example.data.CardKind
 import com.example.data.CardNetwork
 import com.example.data.CurrencyCode
@@ -16,51 +21,23 @@ import org.robolectric.annotation.Config
 class CardDetectorRobolectricTest {
 
     @Test
-    fun parseGooglePayPaymentData_extractsNetworkFundingBankAndLast4() {
-        val sampleVisaCredit = """
-            {
-              "apiVersion": 2,
-              "apiVersionMinor": 0,
-              "paymentMethodData": {
-                "type": "CARD",
-                "description": "BAC Credomatic Visa •••• 4821",
-                "info": {
-                  "cardNetwork": "VISA",
-                  "cardDetails": "4821",
-                  "cardFundingSource": "CREDIT"
-                }
-              }
-            }
-        """.trimIndent()
+    fun walletWithoutNativeAppOpensTheRealGooglePaymentMethodsPage() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        WalletPlatformBridge.openGoogleWallet(app).getOrThrow()
+        val intent = shadowOf(app).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("pay.google.com", intent.data?.host)
+        assertTrue(intent.data?.path.orEmpty().endsWith("/paymentmethods"))
+    }
 
-        val visaResult = CardDetector.parseGooglePayPaymentData(sampleVisaCredit)
-        assertEquals(CardNetwork.VISA, visaResult.network)
-        assertEquals(CardKind.CREDIT, visaResult.cardKind)
-        assertEquals("BAC Credomatic", visaResult.bankName)
-        assertEquals("4821", visaResult.last4)
-        assertTrue(visaResult.googleWalletLinked)
-
-        val sampleMasterDebit = """
-            {
-              "apiVersion": 2,
-              "apiVersionMinor": 0,
-              "paymentMethodData": {
-                "type": "CARD",
-                "description": "Mastercard •••• 9134",
-                "info": {
-                  "cardNetwork": "MASTERCARD",
-                  "cardDetails": "9134",
-                  "cardFundingSource": "DEBIT"
-                }
-              }
-            }
-        """.trimIndent()
-
-        val mcResult = CardDetector.parseGooglePayPaymentData(sampleMasterDebit)
-        assertEquals(CardNetwork.MASTERCARD, mcResult.network)
-        assertEquals(CardKind.DEBIT, mcResult.cardKind)
-        assertEquals("9134", mcResult.last4)
-        assertTrue(mcResult.googleWalletLinked)
+    @Test
+    fun physicalCardScanKeepsNetworkAndLastFourDigits() {
+        val result = requireNotNull(CardDetector.fromPhysicalCard("4111 1111 1111 1111"))
+        assertEquals(CardNetwork.VISA, result.network)
+        assertEquals("1111", result.last4)
+        assertTrue(!result.toString().contains("4111"))
+        assertEquals(null, CardDetector.fromPhysicalCard("4445"))
+        assertEquals(null, CardDetector.fromPhysicalCard("not-a-card"))
     }
 
     @Test

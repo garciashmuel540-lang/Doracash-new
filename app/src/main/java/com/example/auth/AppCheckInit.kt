@@ -7,7 +7,7 @@ import com.example.BuildConfig
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import com.google.firebase.appcheck.recaptcha.RecaptchaAppCheckProviderFactory
 
 private const val TAG = "AppCheckInit"
 
@@ -44,10 +44,9 @@ fun configureAppCheck(context: Context, intent: Intent?) {
             )
             Log.d(TAG, "DebugAppCheckProviderFactory installed.")
         } else {
-            // Android APKs use Play Integrity, not a web reCAPTCHA site key.
-            // Firebase Console must register this Android app with Play Integrity.
+            val siteKey = context.getString(com.example.R.string.recaptcha_site_key)
             FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
-                PlayIntegrityAppCheckProviderFactory.getInstance(), true
+                RecaptchaAppCheckProviderFactory.getInstance(siteKey), true
             )
         }
         providerInstalled = true

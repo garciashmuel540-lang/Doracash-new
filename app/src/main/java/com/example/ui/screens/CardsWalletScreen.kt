@@ -59,7 +59,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,13 +88,8 @@ import com.example.ui.theme.DoraCollarRed
 import com.example.ui.theme.DoraDoorPink
 import com.example.ui.theme.DoraMintGreen
 import com.example.ui.theme.DoraSkyBlue
-import com.example.wallet.CardDetector
 import com.example.wallet.DetectedCardMetadata
-import com.example.wallet.GooglePayCardManager
-import com.example.wallet.GooglePayReadyStatus
 import com.example.wallet.WalletPlatformBridge
-import com.google.android.gms.common.api.CommonStatusCodes
-import com.google.android.gms.wallet.contract.TaskResultContracts
 
 @Composable
 fun CardsWalletScreen(
@@ -120,14 +114,6 @@ fun CardsWalletScreen(
     var walletStatus by remember {
         mutableStateOf(WalletPlatformBridge.inspectDeviceWalletStatus(context))
     }
-    var googlePayStatus by remember {
-        mutableStateOf<GooglePayReadyStatus>(GooglePayReadyStatus.Checking)
-    }
-
-    LaunchedEffect(context) {
-        googlePayStatus = GooglePayCardManager.checkIsReadyToPay(context)
-    }
-
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -149,28 +135,6 @@ fun CardsWalletScreen(
             onFeedback("Tarjetas desbloqueadas")
         } else {
             onFeedback("Verificación cancelada")
-        }
-    }
-
-    val googlePayLauncher = rememberLauncherForActivityResult(
-        contract = TaskResultContracts.GetPaymentDataResult()
-    ) { taskResult ->
-        if (taskResult.status.isSuccess) {
-            val rawJson = taskResult.result?.toJson()
-            if (!rawJson.isNullOrBlank()) {
-                val detected = CardDetector.parseGooglePayPaymentData(rawJson)
-                val netTxt = detected.network?.label ?: ""
-                val kindTxt = detected.cardKind?.label ?: ""
-                val l4Txt = detected.last4?.let { "•••• $it" } ?: ""
-                onFeedback("Google Pay detectó: $netTxt $kindTxt $l4Txt".trim())
-                onImportDetectedCard(detected)
-            } else {
-                onFeedback("Google Pay no devolvió detalles de tarjeta")
-            }
-        } else if (taskResult.status.statusCode == CommonStatusCodes.CANCELED) {
-            onFeedback("Selección de Google Pay cancelada")
-        } else {
-            onFeedback("Google Pay no disponible aquí (${taskResult.status.statusCode}). Usa Escáner o BIN en + Tarjeta.")
         }
     }
 
@@ -223,7 +187,7 @@ fun CardsWalletScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Tarjetas y Wallet",
+                                text = "Mis tarjetas en Doracash",
                                 style = MaterialTheme.typography.titleLarge
                             )
                             Text(
@@ -389,28 +353,15 @@ fun CardsWalletScreen(
                             Column {
                                 Text(text = "Google Wallet y Pagos NFC", style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    text = if (walletStatus.readyForTapToPay) {
-                                        "Listo para pagar sin contacto"
-                                    } else {
-                                        "Acceso directo a Wallet, Google Pay y NFC"
-                                    },
+                                    text = "Consultá tus tarjetas en Wallet. Para llevar sus movimientos en Doracash, escaneá la tarjeta física o tocá + Tarjeta.",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (walletStatus.readyForTapToPay) DoraMintGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     }
 
                     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        StatusPill(
-                            label = when (googlePayStatus) {
-                                GooglePayReadyStatus.Checking -> "GPay: ..."
-                                GooglePayReadyStatus.Ready -> "GPay API: Listo"
-                                is GooglePayReadyStatus.NotReady -> "GPay: Config"
-                            },
-                            active = googlePayStatus is GooglePayReadyStatus.Ready,
-                            modifier = Modifier
-                        )
                         StatusPill(
                             label = if (walletStatus.isGoogleWalletInstalled || walletStatus.isGooglePayInstalled) {
                                 "Wallet: OK"
@@ -438,39 +389,20 @@ fun CardsWalletScreen(
 
                     Button(
                         onClick = {
-                            GooglePayCardManager.loadPaymentDataTask(context)
-                                .addOnCompleteListener { task -> googlePayLauncher.launch(task) }
+                            WalletPlatformBridge.openGoogleWallet(context)
+                                .onSuccess(onFeedback)
+                                .onFailure { onFeedback("No se pudo abrir Google Wallet.") }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = DoraSkyBlue, contentColor = Color.White),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .testTag("detect_google_pay_button")
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("open_google_wallet_button"),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Filled.CreditCard, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Wallet, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Importar tarjeta con Google Pay")
+                        Text("Ver mis tarjetas en Google Wallet")
                     }
+                    PhysicalCardScanButton(onDetected = onImportDetectedCard, onUnavailable = onFeedback)
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        FilledTonalButton(
-                            onClick = {
-                                WalletPlatformBridge.openGoogleWallet(context)
-                                    .onSuccess(onFeedback)
-                                    .onFailure { onFeedback("No se pudo abrir Google Wallet") }
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .testTag("open_google_wallet_button")
-                        ) {
-                            Icon(Icons.Filled.Contactless, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Google Wallet", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-
                         OutlinedButton(
                             onClick = {
                                 WalletPlatformBridge.openGooglePayMethods(context)
@@ -684,7 +616,7 @@ fun CardsWalletScreen(
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
             title = { Text("Eliminar tarjeta") },
-            text = { Text("¿Eliminar '${card.alias}' (•••• ${card.last4}) de tu Wallet?") },
+            text = { Text("¿Eliminar '${card.alias}' (•••• ${card.last4}) de Doracash?") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -918,7 +850,7 @@ private fun BankCardDeckItem(
                         leadingIcon = {
                             Icon(Icons.Filled.Wallet, contentDescription = null, modifier = Modifier.size(16.dp))
                         },
-                        label = { Text(if (card.googleWalletLinked) "En Wallet" else "+ Wallet", maxLines = 1) }
+                        label = { Text(if (card.googleWalletLinked) "Marcada en Wallet" else "Marcar en Wallet", maxLines = 1) }
                     )
                     if (card.cardKindEnum != CardKind.DEBIT) {
                         FilterChip(

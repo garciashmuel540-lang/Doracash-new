@@ -2,10 +2,6 @@
 
 package com.example.ui.screens
 
-import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -26,7 +22,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -48,7 +43,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,9 +67,6 @@ import com.example.ui.theme.DoraMintGreen
 import com.example.ui.theme.DoraSkyBlue
 import com.example.wallet.CardDetector
 import com.example.wallet.DetectedCardMetadata
-import com.example.wallet.GooglePayCardManager
-import com.google.android.gms.common.api.CommonStatusCodes
-import com.google.android.gms.wallet.contract.TaskResultContracts
 import kotlinx.coroutines.launch
 
 @Composable
@@ -1049,7 +1040,6 @@ fun CardEditDialog(
         colorTheme: CardColorTheme
     ) -> Unit
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var alias by remember { mutableStateOf(existing?.alias ?: prefill?.suggestedAlias ?: "") }
@@ -1064,7 +1054,7 @@ fun CardEditDialog(
     var autoDebitEnabled by remember { mutableStateOf(existing?.autoDebitEnabled ?: (cardKind == CardKind.CREDIT)) }
     var autoDebitMode by remember { mutableStateOf(existing?.autoDebitModeEnum ?: AutoDebitMode.FULL_DEBT) }
     var autoDebitValueStr by remember { mutableStateOf(existing?.autoDebitValue?.toString() ?: "100") }
-    var googleWalletLinked by remember { mutableStateOf(existing?.googleWalletLinked ?: prefill?.googleWalletLinked ?: true) }
+    var googleWalletLinked by remember { mutableStateOf(existing?.googleWalletLinked ?: false) }
     var cutoffDayStr by remember { mutableStateOf((existing?.cutoffDay ?: 15).toString()) }
     var dueDayStr by remember { mutableStateOf((existing?.dueDay ?: 5).toString()) }
     var colorTheme by remember { mutableStateOf(existing?.colorThemeEnum ?: prefill?.suggestedTheme ?: CardColorTheme.DORA_BLUE) }
@@ -1085,7 +1075,6 @@ fun CardEditDialog(
         meta.last4?.let { last4 = it }
         meta.suggestedCurrency?.let { currency = it }
         meta.suggestedTheme?.let { colorTheme = it }
-        if (meta.googleWalletLinked) googleWalletLinked = true
         if (alias.isBlank() && !meta.suggestedAlias.isNullOrBlank()) {
             alias = meta.suggestedAlias
         }
@@ -1097,38 +1086,6 @@ fun CardEditDialog(
         }.distinct().joinToString(" · ")
     }
 
-    val googlePayDialogLauncher = rememberLauncherForActivityResult(
-        contract = TaskResultContracts.GetPaymentDataResult()
-    ) { taskResult ->
-        if (taskResult.status.isSuccess) {
-            val rawJson = taskResult.result?.toJson()
-            if (!rawJson.isNullOrBlank()) {
-                applyDetectedMetadata(CardDetector.parseGooglePayPaymentData(rawJson))
-            } else {
-                detectionBanner = "Google Pay no devolvió datos de tarjeta"
-            }
-        } else if (taskResult.status.statusCode != CommonStatusCodes.CANCELED) {
-            detectionBanner = "Google Pay no disponible aquí; usa Escáner o BIN (6 dígitos)."
-        }
-    }
-
-    val ocrScannerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { actResult ->
-        if (actResult.resultCode == Activity.RESULT_OK) {
-            val summary = GooglePayCardManager.extractScannedCardSummary(actResult.data)
-            if (summary != null) {
-                last4 = summary.last4
-                detectingBin = true
-                scope.launch {
-                    val detected = CardDetector.lookupBin(summary.binPrefix)
-                    applyDetectedMetadata(detected.copy(last4 = summary.last4, googleWalletLinked = true))
-                    detectingBin = false
-                }
-            }
-        }
-    }
-
     val liveTextHint = remember(alias, bankName) {
         CardDetector.detectFromText("$bankName $alias")
     }
@@ -1137,7 +1094,7 @@ fun CardEditDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (existing == null) "Nueva Tarjeta / Wallet" else "Editar Tarjeta",
+                if (existing == null) "Registrar tarjeta en Doracash" else "Editar Tarjeta",
                 style = MaterialTheme.typography.headlineMedium
             )
         },
@@ -1148,7 +1105,7 @@ fun CardEditDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Google Pay + OCR + BIN Auto-Detection Panel
+                // Detección de la tarjeta física
                 Surface(
                     color = DoraSkyBlue.copy(alpha = 0.09f),
                     shape = RoundedCornerShape(16.dp),
@@ -1164,47 +1121,10 @@ fun CardEditDialog(
                                 color = DoraSkyBlue
                             )
                         }
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            FilledTonalButton(
-                                onClick = {
-                                    GooglePayCardManager.loadPaymentDataTask(context)
-                                        .addOnCompleteListener { task -> googlePayDialogLauncher.launch(task) }
-                                },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .heightIn(min = 48.dp)
-                                    .testTag("dialog_google_pay_detect_button")
-                            ) {
-                                Icon(Icons.Filled.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Google Pay", maxLines = 1)
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        GooglePayCardManager.requestCardScanPendingIntent(context)
-                                            .onSuccess { pi ->
-                                                ocrScannerLauncher.launch(IntentSenderRequest.Builder(pi).build())
-                                            }
-                                            .onFailure {
-                                                detectionBanner = "Escáner Google Pay no disponible en este dispositivo; usa el BIN."
-                                            }
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.heightIn(min = 48.dp)
-                            ) {
-                                Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Escanear", maxLines = 1)
-                            }
-                        }
+                        PhysicalCardScanButton(
+                            onDetected = ::applyDetectedMetadata,
+                            onUnavailable = { detectionBanner = it }
+                        )
 
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1414,9 +1334,9 @@ fun CardEditDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("En Google Wallet / Tap & Pay", style = MaterialTheme.typography.bodyMedium)
+                        Text("También la tengo en Google Wallet", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            text = "Marca si ya la agregaste a Google Wallet",
+                            text = "Etiqueta personal de esta tarjeta",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

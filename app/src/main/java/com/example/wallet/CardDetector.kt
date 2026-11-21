@@ -19,7 +19,6 @@ data class DetectedCardMetadata(
     val last4: String? = null,
     val suggestedCurrency: CurrencyCode? = null,
     val suggestedTheme: CardColorTheme? = null,
-    val googleWalletLinked: Boolean = false,
     val countryName: String? = null,
     val sourceLabel: String = ""
 )
@@ -123,72 +122,13 @@ object CardDetector {
         )
     }
 
-    fun parseGooglePayPaymentData(rawJson: String): DetectedCardMetadata {
-        val root = runCatching { JSONObject(rawJson) }.getOrNull() ?: return DetectedCardMetadata()
-        val pmData = root.optJSONObject("paymentMethodData") ?: return DetectedCardMetadata()
-        val description = pmData.optString("description").trim()
-        val info = pmData.optJSONObject("info")
-
-        val rawNetwork = info?.optString("cardNetwork").orEmpty().uppercase()
-        val network = when (rawNetwork) {
-            "VISA" -> CardNetwork.VISA
-            "MASTERCARD" -> CardNetwork.MASTERCARD
-            "AMEX" -> CardNetwork.AMEX
-            "" -> null
-            else -> CardNetwork.OTHER
-        }
-
-        val rawLast4 = info?.optString("cardDetails").orEmpty().filter { it.isDigit() }.takeLast(4)
-        val last4 = rawLast4.takeIf { it.length == 4 }
-
-        val rawFunding = info?.optString("cardFundingSource").orEmpty().uppercase()
-        val fundingKind = when (rawFunding) {
-            "CREDIT" -> CardKind.CREDIT
-            "DEBIT" -> CardKind.DEBIT
-            "PREPAID" -> CardKind.PREPAID
-            else -> null
-        }
-
-        val textHints = detectFromText(description)
-        val resolvedKind = fundingKind ?: textHints.cardKind
-        val resolvedNet = network ?: textHints.network
-        val resolvedBank = textHints.bankName
-
-        val cleanAlias = buildString {
-            if (!resolvedBank.isNullOrBlank()) {
-                append(resolvedBank)
-                append(' ')
-            }
-            if (resolvedNet != null) {
-                append(resolvedNet.label)
-            } else if (description.isNotBlank()) {
-                append(description.substringBefore("•").trim())
-            } else {
-                append("Tarjeta Google Pay")
-            }
-            if (resolvedKind != null) {
-                append(" ")
-                append(resolvedKind.label)
-            }
-        }.trim().take(60)
-
-        val suggestedTheme = textHints.suggestedTheme ?: when (resolvedKind) {
-            CardKind.DEBIT -> CardColorTheme.DORA_BLUE
-            CardKind.PREPAID -> CardColorTheme.PURPLE
-            CardKind.VIRTUAL -> CardColorTheme.EMERALD
-            CardKind.CREDIT -> CardColorTheme.GOLD
-            null -> CardColorTheme.DORA_BLUE
-        }
-
+    fun fromPhysicalCard(pan: String): DetectedCardMetadata? {
+        val digits = pan.filterNot { it == ' ' || it == '-' }
+        if (digits.length !in 12..19 || digits.any { it !in '0'..'9' }) return null
         return DetectedCardMetadata(
-            network = resolvedNet,
-            cardKind = resolvedKind,
-            bankName = resolvedBank,
-            suggestedAlias = cleanAlias.ifBlank { description.take(60) },
-            last4 = last4,
-            suggestedTheme = suggestedTheme,
-            googleWalletLinked = true,
-            sourceLabel = "Detectada con Google Pay"
+            network = detectNetworkFromDigits(digits),
+            last4 = digits.takeLast(4),
+            sourceLabel = "Tarjeta física escaneada"
         )
     }
 
