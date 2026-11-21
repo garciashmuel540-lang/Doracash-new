@@ -24,9 +24,19 @@ jobs:
         with:
           gradle-version: '9.3.1'
       - name: Compilar y probar
+        env:
+          DORACASH_MOTION_FRAMES: ${{ runner.temp }}/doracash-frames
         run: |
           keytool -genkeypair -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Doracash CI"
           gradle assembleDebug testDebugUnitTest
+      - name: Mostrar la animación capturada en Android
+        run: |
+          convert -delay 6 -loop 0 "$RUNNER_TEMP"/doracash-frames/frame-*.png -layers Optimize Doraemon.gif
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Doraemon-en-movimiento
+          path: Doraemon.gif
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: Doracash-Android-prueba
@@ -99,6 +109,10 @@ jobs:
           sha256sum "$apk" > SHA256SUMS.txt
           gh release create "android-v$VERSION" "$apk" SHA256SUMS.txt --target "$GITHUB_SHA" --latest --title "Doracash $VERSION" --notes "Actualización Android firmada de Doracash."
 
+      - uses: actions/download-artifact@v4
+        if: steps.release.outputs.local == 'true'
+        with:
+          name: Doraemon-en-movimiento
       - name: Preparar el APK para la firma original en Cloud Shell
         if: steps.release.outputs.local == 'true'
         env:
@@ -111,4 +125,4 @@ jobs:
           out=app/build/outputs/apk/release
           jq -e --arg v "$VERSION" --argjson c "$CODE" '.applicationId == "com.aistudio.doracash.kmpzqx" and (.elements | length == 1) and .elements[0].versionName == $v and .elements[0].versionCode == $c' "$out/output-metadata.json" >/dev/null
           zip -j "Doracash-para-firmar-$CODE.zip" "$out/app-release-unsigned.apk"
-          gh release create "firma-local-v$VERSION" "Doracash-para-firmar-$CODE.zip" --target "$GITHUB_SHA" --prerelease --latest=false --title "Base para firmar Doracash $VERSION" --notes "Paquete de distribución para el titular de la firma. La app instalable se publica en android-v$VERSION."
+          gh release create "firma-local-v$VERSION" "Doracash-para-firmar-$CODE.zip" Doraemon.gif --target "$GITHUB_SHA" --prerelease --latest=false --title "Base para firmar Doracash $VERSION" --notes "Paquete de distribución para el titular de la firma. La app instalable se publica en android-v$VERSION."

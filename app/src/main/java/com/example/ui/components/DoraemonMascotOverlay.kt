@@ -104,6 +104,7 @@ fun DoraemonImportantPopup(
     modifier: Modifier = Modifier
 ) {
     val targetGesture = when {
+        tipState is DoraemonTipUiState.Checking -> DoraemonGesture.THINK
         gestureOverride != null -> gestureOverride
         tipState is DoraemonTipUiState.Important -> tipState.gesture
         tipState is DoraemonTipUiState.Error -> DoraemonGesture.ALERT
@@ -121,8 +122,8 @@ fun DoraemonImportantPopup(
     LaunchedEffect(visible, noticeKey, targetGesture, gestureOverride) {
         if (!visible) {
             activeGesture = DoraemonGesture.SALUTE
-        } else if (gestureOverride != null) {
-            activeGesture = gestureOverride
+        } else if (gestureOverride != null || tipState is DoraemonTipUiState.Checking) {
+            activeGesture = targetGesture
         } else {
             activeGesture = DoraemonGesture.SALUTE
             if (targetGesture != DoraemonGesture.SALUTE) {
@@ -133,6 +134,7 @@ fun DoraemonImportantPopup(
     }
 
     val bubbleText = when {
+        tipState is DoraemonTipUiState.Checking -> "Revisando tus movimientos…"
         gestureOverride == DoraemonGesture.THINK -> "Analizando tus cuentas, pagos y ahorros del mes…"
         gestureOverride == DoraemonGesture.CELEBRATE -> "¡Tu bolsillo avanza genial! Toca para ver ideas."
         tipState is DoraemonTipUiState.Important -> tipState.tip
@@ -177,10 +179,11 @@ fun DoraemonAssistantSheet(
     var welcomePreviewGesture by remember { mutableStateOf(DoraemonGesture.SALUTE) }
     var hasPlayedIntro by remember { mutableStateOf(false) }
 
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
+
     LaunchedEffect(chatState, messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
-        }
         if (!hasPlayedIntro && chatState is DoraemonChatUiState.Idle && messages.isNotEmpty()) {
             currentSheetGesture = DoraemonGesture.SALUTE
             delay(850L)
@@ -255,9 +258,8 @@ fun DoraemonAssistantSheet(
                             .background(DoraSkyBlue.copy(alpha = 0.14f))
                             .border(2.dp, DoraSkyBlue, CircleShape)
                     ) {
-                        DoraemonAvdCharacter(
+                        DoraemonAnimatedMascot(
                             gesture = currentSheetGesture,
-                            isAnimating = true,
                             modifier = Modifier.size(54.dp)
                         )
                     }
@@ -368,9 +370,8 @@ fun DoraemonAssistantSheet(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(20.dp)
                             ) {
-                                DoraemonAvdCharacter(
+                                DoraemonAnimatedMascot(
                                     gesture = welcomePreviewGesture,
-                                    isAnimating = true,
                                     modifier = Modifier
                                         .size(132.dp)
                                         .clickable {

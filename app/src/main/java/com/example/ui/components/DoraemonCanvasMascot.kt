@@ -1,8 +1,6 @@
 package com.example.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -13,7 +11,10 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -74,7 +75,7 @@ fun DoraemonAnimatedMascot(
     gesture: DoraemonGesture,
     modifier: Modifier = Modifier
 ) {
-    // 1. State-driven transition between SALUTE / THINK / CELEBRATE / ADVISING / ALERT
+    // State-driven transition between SALUTE / THINK / CELEBRATE / ADVISING / ALERT
     val transition = updateTransition(targetState = gesture, label = "doraemon_state_transition")
     val springSpec = spring<Float>(
         dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -99,9 +100,9 @@ fun DoraemonAnimatedMascot(
         label = "left_arm_base"
     ) { state ->
         when (state) {
-            DoraemonGesture.SALUTE -> -34f
-            DoraemonGesture.CELEBRATE -> -46f
-            DoraemonGesture.THINK -> 38f
+            DoraemonGesture.SALUTE -> 20f
+            DoraemonGesture.CELEBRATE -> 27f
+            DoraemonGesture.THINK -> -88f
             DoraemonGesture.ADVISING -> -16f
             DoraemonGesture.ALERT -> -28f
         }
@@ -125,8 +126,8 @@ fun DoraemonAnimatedMascot(
         label = "right_arm_base"
     ) { state ->
         when (state) {
-            DoraemonGesture.CELEBRATE -> -124f // raised arm up in victory
-            DoraemonGesture.THINK -> -72f // hand up near chin thinking
+            DoraemonGesture.CELEBRATE -> 178f // raised arm up in victory
+            DoraemonGesture.THINK -> 88f // hand up near chin thinking
             DoraemonGesture.SALUTE -> 8f // relaxed near hip/pocket
             DoraemonGesture.ADVISING -> 0f
             DoraemonGesture.ALERT -> -18f
@@ -203,417 +204,420 @@ fun DoraemonAnimatedMascot(
         }
     }
 
-    // 2. Continuous rhythmic drivers
-    val infinite = rememberInfiniteTransition(label = "doraemon_loop")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1900, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "loop_phase"
+    val happy by transition.animateFloat(transitionSpec = { tween(320) }, label = "happy") {
+        if (it == DoraemonGesture.CELEBRATE) 1f else 0f
+    }
+    val alert by transition.animateFloat(transitionSpec = { tween(320) }, label = "alert") {
+        if (it == DoraemonGesture.ALERT) 1f else 0f
+    }
+    val greeting by transition.animateFloat(transitionSpec = { tween(320) }, label = "greeting") {
+        if (it == DoraemonGesture.SALUTE) 1f else 0f
+    }
+    val description = when (gesture) {
+        DoraemonGesture.SALUTE -> "Doraemon saludando"
+        DoraemonGesture.THINK -> "Doraemon pensando"
+        DoraemonGesture.CELEBRATE -> "Doraemon celebrando"
+        DoraemonGesture.ADVISING -> "Doraemon aconsejando"
+        DoraemonGesture.ALERT -> "Doraemon en alerta"
+    }
+    val loop = rememberInfiniteTransition(label = "doraemon")
+    val time by loop.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(4800, easing = LinearEasing)),
+        label = "motion_cycle"
     )
+    Canvas(modifier = modifier.semantics { contentDescription = description }) {
+        val h = minOf(size.height, size.width / 0.84f)
+        val w = h * 0.84f
+        val unit = w
+        val stroke = unit * 0.015f
+        val angle = time * (2 * PI).toFloat()
+        val phase = angle * 2f
+        val blinkCycle = time
+        val sparklePulse = 0.9f + 0.25f * cos(phase * 2f)
+        withTransform({ translate((size.width - w) / 2f, (size.height - h) / 2f) }) {
+            val hopWave = (1f - cos(phase)) * 0.5f
+            val floatY = -hopWave * (unit * 0.048f) * jumpFactor
+            val breathScaleX = 1f + cos(phase * 2f) * (0.022f * jumpFactor + 0.01f)
+            val breathScaleY = 1f - cos(phase * 2f) * (0.022f * jumpFactor + 0.01f)
 
-    val blinkCycle by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "blink_cycle"
-    )
+            val leftArmAngle = leftArmBaseDeg + sin(phase * 2f) * leftArmWaveAmp
+            val rightArmAngle = rightArmBaseDeg + cos(phase * 2f) * rightArmWaveAmp
+            val tailWag = sin(phase * 2f) * (8f + 10f * jumpFactor)
+            val bellSwing = sin(phase * 3f) * bellSwingAmp
+            val bodySway = sin(phase) * (2f + 2f * jumpFactor) + headTiltDeg * 0.25f
 
-    val sparklePulse by infinite.animateFloat(
-        initialValue = 0.65f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 750, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "sparkle_pulse"
-    )
-
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val unit = minOf(w, h)
-        val stroke = (unit * 0.024f).coerceAtLeast(1.8f)
-
-        val hopWave = abs(sin(phase))
-        val floatY = -hopWave * (unit * 0.065f) * jumpFactor
-        val breathScaleX = 1f + cos(phase * 2f) * (0.022f * jumpFactor + 0.01f)
-        val breathScaleY = 1f - cos(phase * 2f) * (0.022f * jumpFactor + 0.01f)
-
-        val leftArmAngle = leftArmBaseDeg + sin(phase * 2f) * leftArmWaveAmp
-        val rightArmAngle = rightArmBaseDeg + cos(phase * 2f) * rightArmWaveAmp
-        val tailWag = sin(phase * 2.5f) * (8f + 10f * jumpFactor)
-        val bellSwing = sin(phase * 3f) * bellSwingAmp
-        val bodySway = sin(phase) * (2f + 2f * jumpFactor) + headTiltDeg * 0.25f
-
-        // Ground shadow shrinks smoothly during hops
-        val shadowShrink = (1f - (hopWave * 0.18f * jumpFactor)).coerceIn(0.68f, 1f)
-        drawOval(
-            brush = Brush.radialGradient(
-                colors = listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent),
-                center = Offset(w * 0.50f, h * 0.92f),
-                radius = w * 0.30f * shadowShrink
-            ),
-            topLeft = Offset(w * (0.50f - 0.27f * shadowShrink), h * 0.885f),
-            size = Size(w * 0.54f * shadowShrink, h * 0.07f)
-        )
-
-        // Thought dots floating smoothly near temple in THINK state
-        if (thinkFxAlpha > 0.02f) {
-            val drift = sin(phase) * (unit * 0.016f)
-            drawCircle(
-                color = Color.White.copy(alpha = 0.92f * thinkFxAlpha),
-                radius = unit * 0.024f,
-                center = Offset(w * 0.86f, h * 0.16f + drift)
-            )
-            drawCircle(
-                color = BoingBlueLight.copy(alpha = 0.85f * thinkFxAlpha),
-                radius = unit * 0.024f,
-                center = Offset(w * 0.86f, h * 0.16f + drift),
-                style = Stroke(width = stroke * 0.65f)
-            )
-            drawCircle(
-                color = Color.White.copy(alpha = 0.95f * thinkFxAlpha),
-                radius = unit * 0.036f,
-                center = Offset(w * 0.92f, h * 0.09f - drift)
-            )
-            drawCircle(
-                color = BoingBlueLight.copy(alpha = 0.9f * thinkFxAlpha),
-                radius = unit * 0.036f,
-                center = Offset(w * 0.92f, h * 0.09f - drift),
-                style = Stroke(width = stroke * 0.65f)
-            )
-        }
-
-        // Anime celebration sparkles in CELEBRATE / SALUTE states
-        if (celebrateFxAlpha > 0.02f) {
-            drawFourPointSparkle(
-                center = Offset(w * 0.12f, h * 0.16f),
-                radius = unit * 0.055f * sparklePulse,
-                color = BoingGoldMid.copy(alpha = celebrateFxAlpha),
-                rotationDeg = phase * 30f
-            )
-            drawFourPointSparkle(
-                center = Offset(w * 0.88f, h * 0.18f),
-                radius = unit * 0.048f * (2f - sparklePulse),
-                color = BoingBlueLight.copy(alpha = celebrateFxAlpha),
-                rotationDeg = -phase * 35f
-            )
-            drawFourPointSparkle(
-                center = Offset(w * 0.84f, h * 0.44f),
-                radius = unit * 0.036f * sparklePulse,
-                color = BoingGoldLight.copy(alpha = celebrateFxAlpha * 0.9f),
-                rotationDeg = phase * 20f
-            )
-        }
-
-        withTransform({
-            translate(left = 0f, top = floatY)
-            rotate(degrees = bodySway, pivot = Offset(w * 0.50f, h * 0.72f))
-            scale(scaleX = breathScaleX, scaleY = breathScaleY, pivot = Offset(w * 0.50f, h * 0.88f))
-        }) {
-            // 1. Wagging Tail (behind torso)
-            val tailBase = Offset(w * 0.71f, h * 0.76f)
-            rotate(degrees = tailWag, pivot = tailBase) {
-                drawLine(
-                    color = BoingInk,
-                    start = tailBase,
-                    end = Offset(w * 0.86f, h * 0.72f),
-                    strokeWidth = stroke * 1.1f,
-                    cap = StrokeCap.Round
-                )
-                val tailBall = Offset(w * 0.875f, h * 0.715f)
-                val tailR = unit * 0.048f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(BoingRedLight, BoingRedDeep),
-                        center = Offset(tailBall.x - tailR * 0.3f, tailBall.y - tailR * 0.3f),
-                        radius = tailR * 1.3f
-                    ),
-                    radius = tailR,
-                    center = tailBall
-                )
-                drawCircle(color = BoingInk, radius = tailR, center = tailBall, style = Stroke(width = stroke))
-            }
-
-            // 2. Left Arm (articulated waving / saluting arm)
-            val leftShoulder = Offset(w * 0.28f, h * 0.565f)
-            rotate(degrees = leftArmAngle, pivot = leftShoulder) {
-                drawBlueLimbCapsule(
-                    start = leftShoulder,
-                    end = Offset(w * 0.135f, h * 0.46f),
-                    width = unit * 0.095f,
-                    stroke = stroke
-                )
-                drawRoundWhitePaw(
-                    center = Offset(w * 0.125f, h * 0.45f),
-                    radius = unit * 0.068f,
-                    stroke = stroke
-                )
-            }
-
-            // 3. Chubby Cel-Shaded Blue Torso
-            val torsoRect = Rect(w * 0.245f, h * 0.50f, w * 0.755f, h * 0.835f)
-            drawRoundRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(BoingBlueLight, BoingBlueMid, BoingBlueDeep),
-                    center = Offset(w * 0.40f, h * 0.58f),
-                    radius = unit * 0.45f
-                ),
-                topLeft = torsoRect.topLeft,
-                size = torsoRect.size,
-                cornerRadius = CornerRadius(unit * 0.20f, unit * 0.20f)
-            )
-            drawRoundRect(
-                color = BoingInk,
-                topLeft = torsoRect.topLeft,
-                size = torsoRect.size,
-                cornerRadius = CornerRadius(unit * 0.20f, unit * 0.20f),
-                style = Stroke(width = stroke)
-            )
-
-            // 4. Short stubby legs & Plump White Shoes
-            drawCelFoot(Offset(w * 0.22f, h * 0.805f), Size(w * 0.25f, h * 0.09f), stroke)
-            drawCelFoot(Offset(w * 0.53f, h * 0.805f), Size(w * 0.25f, h * 0.09f), stroke)
-
-            // 5. White Belly Patch & 4D Pocket
-            val bellyTopLeft = Offset(w * 0.305f, h * 0.535f)
-            val bellySize = Size(w * 0.39f, h * 0.245f)
+            // Ground shadow shrinks smoothly during hops
+            val shadowShrink = (1f - (hopWave * 0.18f * jumpFactor)).coerceIn(0.68f, 1f)
             drawOval(
                 brush = Brush.radialGradient(
-                    colors = listOf(BoingWhiteTop, BoingWhiteShade),
-                    center = Offset(w * 0.48f, h * 0.61f),
-                    radius = unit * 0.25f
+                    colors = listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent),
+                    center = Offset(w * 0.50f, h * 0.92f),
+                    radius = w * 0.30f * shadowShrink
                 ),
-                topLeft = bellyTopLeft,
-                size = bellySize
+                topLeft = Offset(w * (0.50f - 0.27f * shadowShrink), h * 0.885f),
+                size = Size(w * 0.54f * shadowShrink, h * 0.07f)
             )
-            drawOval(color = BoingInk, topLeft = bellyTopLeft, size = bellySize, style = Stroke(width = stroke))
 
-            val pocketPath = Path().apply {
-                moveTo(w * 0.355f, h * 0.655f)
-                lineTo(w * 0.645f, h * 0.655f)
-                arcTo(
-                    rect = Rect(w * 0.355f, h * 0.56f, w * 0.645f, h * 0.755f),
-                    startAngleDegrees = 0f,
-                    sweepAngleDegrees = 180f,
-                    forceMoveTo = false
+            // Thought dots floating smoothly near temple in THINK state
+            if (thinkFxAlpha > 0.02f) {
+                val drift = sin(phase) * (unit * 0.016f)
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.92f * thinkFxAlpha),
+                    radius = unit * 0.024f,
+                    center = Offset(w * 0.86f, h * 0.16f + drift)
                 )
-                close()
-            }
-            drawPath(
-                pocketPath,
-                brush = Brush.verticalGradient(
-                    colors = listOf(BoingWhiteShade, BoingWhiteTop),
-                    startY = h * 0.65f,
-                    endY = h * 0.76f
+                drawCircle(
+                    color = BoingBlueLight.copy(alpha = 0.85f * thinkFxAlpha),
+                    radius = unit * 0.024f,
+                    center = Offset(w * 0.86f, h * 0.16f + drift),
+                    style = Stroke(width = stroke * 0.65f)
                 )
-            )
-            drawPath(pocketPath, color = BoingInk, style = Stroke(width = stroke, join = StrokeJoin.Round))
-
-            // 6. Right Arm (reaches pocket in SALUTE, touches chin in THINK, raises high in CELEBRATE)
-            val rightShoulder = Offset(w * 0.72f, h * 0.565f)
-            rotate(degrees = rightArmAngle, pivot = rightShoulder) {
-                val pawEnd = Offset(w * 0.62f, h * 0.665f)
-                drawBlueLimbCapsule(
-                    start = rightShoulder,
-                    end = pawEnd,
-                    width = unit * 0.092f,
-                    stroke = stroke
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.95f * thinkFxAlpha),
+                    radius = unit * 0.036f,
+                    center = Offset(w * 0.92f, h * 0.09f - drift)
                 )
-                drawRoundWhitePaw(
-                    center = pawEnd,
-                    radius = unit * 0.064f,
-                    stroke = stroke
+                drawCircle(
+                    color = BoingBlueLight.copy(alpha = 0.9f * thinkFxAlpha),
+                    radius = unit * 0.036f,
+                    center = Offset(w * 0.92f, h * 0.09f - drift),
+                    style = Stroke(width = stroke * 0.65f)
                 )
             }
 
-            // 7. Big Expressive Modern Boing-Style Head
-            val neckPivot = Offset(w * 0.50f, h * 0.525f)
-            rotate(degrees = headTiltDeg, pivot = neckPivot) {
-                val headCenter = Offset(w * 0.50f, h * 0.295f)
-                val headRx = w * 0.385f
-                val headRy = h * 0.26f
+            // Anime celebration sparkles in CELEBRATE / SALUTE states
+            if (celebrateFxAlpha > 0.02f) {
+                drawFourPointSparkle(
+                    center = Offset(w * 0.12f, h * 0.16f),
+                    radius = unit * 0.055f * sparklePulse,
+                    color = BoingGoldMid.copy(alpha = celebrateFxAlpha),
+                    rotationDeg = angle * 180f / PI.toFloat()
+                )
+                drawFourPointSparkle(
+                    center = Offset(w * 0.88f, h * 0.18f),
+                    radius = unit * 0.048f * (2f - sparklePulse),
+                    color = BoingBlueLight.copy(alpha = celebrateFxAlpha),
+                    rotationDeg = -angle * 180f / PI.toFloat()
+                )
+                drawFourPointSparkle(
+                    center = Offset(w * 0.84f, h * 0.44f),
+                    radius = unit * 0.036f * sparklePulse,
+                    color = BoingGoldLight.copy(alpha = celebrateFxAlpha * 0.9f),
+                    rotationDeg = angle * 180f / PI.toFloat()
+                )
+            }
 
-                // Volumetric 3D blue head gradient
-                drawOval(
+            withTransform({
+                translate(left = 0f, top = floatY)
+                rotate(degrees = bodySway, pivot = Offset(w * 0.50f, h * 0.72f))
+                scale(scaleX = breathScaleX, scaleY = breathScaleY, pivot = Offset(w * 0.50f, h * 0.88f))
+            }) {
+                // Wagging Tail (behind torso)
+                val tailBase = Offset(w * 0.71f, h * 0.76f)
+                rotate(degrees = tailWag, pivot = tailBase) {
+                    drawLine(
+                        color = BoingInk,
+                        start = tailBase,
+                        end = Offset(w * 0.86f, h * 0.72f),
+                        strokeWidth = stroke * 1.1f,
+                        cap = StrokeCap.Round
+                    )
+                    val tailBall = Offset(w * 0.875f, h * 0.715f)
+                    val tailR = unit * 0.048f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(BoingRedLight, BoingRedDeep),
+                            center = Offset(tailBall.x - tailR * 0.3f, tailBall.y - tailR * 0.3f),
+                            radius = tailR * 1.3f
+                        ),
+                        radius = tailR,
+                        center = tailBall
+                    )
+                    drawCircle(color = BoingInk, radius = tailR, center = tailBall, style = Stroke(width = stroke))
+                }
+
+                // Chubby Cel-Shaded Blue Torso
+                val torsoRect = Rect(w * 0.245f, h * 0.50f, w * 0.755f, h * 0.835f)
+                drawRoundRect(
                     brush = Brush.radialGradient(
                         colors = listOf(BoingBlueLight, BoingBlueMid, BoingBlueDeep),
-                        center = Offset(headCenter.x - headRx * 0.34f, headCenter.y - headRy * 0.38f),
-                        radius = headRx * 1.65f
+                        center = Offset(w * 0.40f, h * 0.58f),
+                        radius = unit * 0.45f
                     ),
-                    topLeft = Offset(headCenter.x - headRx, headCenter.y - headRy),
-                    size = Size(headRx * 2f, headRy * 2f)
+                    topLeft = torsoRect.topLeft,
+                    size = torsoRect.size,
+                    cornerRadius = CornerRadius(unit * 0.20f, unit * 0.20f)
                 )
-                // Glossy anime forehead highlight arc
-                drawArc(
-                    color = Color.White.copy(alpha = 0.26f),
-                    startAngle = 210f,
-                    sweepAngle = 55f,
-                    useCenter = false,
-                    topLeft = Offset(headCenter.x - headRx * 0.86f, headCenter.y - headRy * 0.86f),
-                    size = Size(headRx * 1.72f, headRy * 1.72f),
-                    style = Stroke(width = unit * 0.025f, cap = StrokeCap.Round)
-                )
-                drawOval(
+                drawRoundRect(
                     color = BoingInk,
-                    topLeft = Offset(headCenter.x - headRx, headCenter.y - headRy),
-                    size = Size(headRx * 2f, headRy * 2f),
+                    topLeft = torsoRect.topLeft,
+                    size = torsoRect.size,
+                    cornerRadius = CornerRadius(unit * 0.20f, unit * 0.20f),
                     style = Stroke(width = stroke)
                 )
 
-                // White Face Mask
-                val faceRx = headRx * 0.84f
-                val faceRy = headRy * 0.78f
-                val faceCenter = Offset(headCenter.x, headCenter.y + h * 0.044f)
+                // Short stubby legs & Plump White Shoes
+                drawCelFoot(Offset(w * 0.22f, h * 0.805f), Size(w * 0.25f, h * 0.09f), stroke)
+                drawCelFoot(Offset(w * 0.53f, h * 0.805f), Size(w * 0.25f, h * 0.09f), stroke)
+
+                // White Belly Patch & 4D Pocket
+                val bellyTopLeft = Offset(w * 0.305f, h * 0.535f)
+                val bellySize = Size(w * 0.39f, h * 0.245f)
                 drawOval(
                     brush = Brush.radialGradient(
-                        colors = listOf(BoingWhiteTop, BoingWhiteTop, BoingWhiteShade),
-                        center = Offset(faceCenter.x, faceCenter.y - faceRy * 0.2f),
-                        radius = faceRx * 1.3f
+                        colors = listOf(BoingWhiteTop, BoingWhiteShade),
+                        center = Offset(w * 0.48f, h * 0.61f),
+                        radius = unit * 0.25f
                     ),
-                    topLeft = Offset(faceCenter.x - faceRx, faceCenter.y - faceRy),
-                    size = Size(faceRx * 2f, faceRy * 2f)
+                    topLeft = bellyTopLeft,
+                    size = bellySize
                 )
-                drawOval(
+                drawOval(color = BoingInk, topLeft = bellyTopLeft, size = bellySize, style = Stroke(width = stroke))
+
+                val pocketPath = Path().apply {
+                    moveTo(w * 0.355f, h * 0.655f)
+                    lineTo(w * 0.645f, h * 0.655f)
+                    arcTo(
+                        rect = Rect(w * 0.355f, h * 0.56f, w * 0.645f, h * 0.755f),
+                        startAngleDegrees = 0f,
+                        sweepAngleDegrees = 180f,
+                        forceMoveTo = false
+                    )
+                    close()
+                }
+                drawPath(
+                    pocketPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(BoingWhiteShade, BoingWhiteTop),
+                        startY = h * 0.65f,
+                        endY = h * 0.76f
+                    )
+                )
+                drawPath(pocketPath, color = BoingInk, style = Stroke(width = stroke, join = StrokeJoin.Round))
+
+                // Big Expressive Modern Boing-Style Head
+                val neckPivot = Offset(w * 0.50f, h * 0.525f)
+                rotate(degrees = headTiltDeg, pivot = neckPivot) {
+                    drawCharacterFace(w, h, stroke, phase, blinkCycle, thinkFxAlpha, happy, alert, greeting, blushAlpha)
+                }
+
+                // Red Collar with Highlight & 3D Swinging Golden Bell
+                val collarRect = Rect(w * 0.27f, h * 0.50f, w * 0.73f, h * 0.546f)
+                drawRoundRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(BoingRedLight, BoingRedDeep),
+                        startY = collarRect.top,
+                        endY = collarRect.bottom
+                    ),
+                    topLeft = collarRect.topLeft,
+                    size = collarRect.size,
+                    cornerRadius = CornerRadius(unit * 0.04f, unit * 0.04f)
+                )
+                drawRoundRect(
                     color = BoingInk,
-                    topLeft = Offset(faceCenter.x - faceRx, faceCenter.y - faceRy),
-                    size = Size(faceRx * 2f, faceRy * 2f),
+                    topLeft = collarRect.topLeft,
+                    size = collarRect.size,
+                    cornerRadius = CornerRadius(unit * 0.04f, unit * 0.04f),
                     style = Stroke(width = stroke)
                 )
 
-                // Soft Rosy Anime Cheek Blush
-                if (blushAlpha > 0.02f) {
-                    drawOval(
-                        color = BoingBlush.copy(alpha = blushAlpha),
-                        topLeft = Offset(w * 0.23f, h * 0.29f),
-                        size = Size(w * 0.11f, h * 0.045f)
+                val bellCenter = Offset(w * 0.50f, h * 0.56f)
+                val bellR = unit * 0.068f
+                if (gesture == DoraemonGesture.ALERT || gesture == DoraemonGesture.CELEBRATE) {
+                    drawCircle(
+                        color = BoingGoldMid.copy(alpha = 0.32f * (sparklePulse - 0.4f)),
+                        radius = bellR * 1.55f,
+                        center = bellCenter
                     )
-                    drawOval(
-                        color = BoingBlush.copy(alpha = blushAlpha),
-                        topLeft = Offset(w * 0.66f, h * 0.29f),
-                        size = Size(w * 0.11f, h * 0.045f)
+                }
+                rotate(degrees = bellSwing, pivot = Offset(bellCenter.x, h * 0.525f)) {
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(BoingGoldLight, BoingGoldMid, BoingGoldDeep),
+                            center = Offset(bellCenter.x - bellR * 0.3f, bellCenter.y - bellR * 0.3f),
+                            radius = bellR * 1.4f
+                        ),
+                        radius = bellR,
+                        center = bellCenter
+                    )
+                    drawCircle(color = BoingInk, radius = bellR, center = bellCenter, style = Stroke(width = stroke))
+                    drawLine(
+                        color = BoingInk,
+                        start = Offset(bellCenter.x - bellR * 0.86f, bellCenter.y - bellR * 0.14f),
+                        end = Offset(bellCenter.x + bellR * 0.86f, bellCenter.y - bellR * 0.14f),
+                        strokeWidth = stroke * 0.75f
+                    )
+                    drawCircle(
+                        color = BoingInk,
+                        radius = bellR * 0.22f,
+                        center = Offset(bellCenter.x, bellCenter.y + bellR * 0.28f)
+                    )
+                    drawLine(
+                        color = BoingInk,
+                        start = Offset(bellCenter.x, bellCenter.y + bellR * 0.3f),
+                        end = Offset(bellCenter.x, bellCenter.y + bellR * 0.84f),
+                        strokeWidth = stroke * 0.72f
+                    )
+                }
+                // Left Arm (articulated waving / saluting arm)
+                val leftShoulder = Offset(w * 0.28f, h * 0.565f)
+                rotate(degrees = leftArmAngle, pivot = leftShoulder) {
+                    drawBlueLimbCapsule(
+                        start = leftShoulder,
+                        end = Offset(w * 0.135f, h * 0.46f),
+                        width = unit * 0.095f,
+                        stroke = stroke
+                    )
+                    drawRoundWhitePaw(
+                        center = Offset(w * 0.125f, h * 0.45f),
+                        radius = unit * 0.068f,
+                        stroke = stroke
                     )
                 }
 
-                // Expressive Mouth & Tongue
-                drawBoingMouth(gesture = gesture, phase = phase, w = w, h = h, stroke = stroke)
+                // Right Arm (reaches pocket in SALUTE, touches chin in THINK, raises high in CELEBRATE)
+                val rightShoulder = Offset(w * 0.72f, h * 0.565f)
+                rotate(degrees = rightArmAngle, pivot = rightShoulder) {
+                    val pawEnd = Offset(w * 0.62f, h * 0.665f)
+                    drawBlueLimbCapsule(
+                        start = rightShoulder,
+                        end = pawEnd,
+                        width = unit * 0.092f,
+                        stroke = stroke
+                    )
+                    drawRoundWhitePaw(
+                        center = pawEnd,
+                        radius = unit * 0.064f,
+                        stroke = stroke
+                    )
+                }
 
-                // Philtrum line
-                drawLine(
-                    color = BoingInk,
-                    start = Offset(w * 0.50f, h * 0.26f),
-                    end = Offset(w * 0.50f, h * 0.33f),
-                    strokeWidth = stroke * 0.85f
-                )
-
-                // Crisp anime whiskers (3 per side)
-                val whiskerFlex = sin(phase * 2f) * (h * 0.006f)
-                drawLine(BoingInk, Offset(w * 0.36f, h * 0.255f), Offset(w * 0.17f, h * 0.215f + whiskerFlex), stroke * 0.78f, StrokeCap.Round)
-                drawLine(BoingInk, Offset(w * 0.35f, h * 0.285f), Offset(w * 0.15f, h * 0.282f), stroke * 0.78f, StrokeCap.Round)
-                drawLine(BoingInk, Offset(w * 0.36f, h * 0.315f), Offset(w * 0.17f, h * 0.342f - whiskerFlex), stroke * 0.78f, StrokeCap.Round)
-
-                drawLine(BoingInk, Offset(w * 0.64f, h * 0.255f), Offset(w * 0.83f, h * 0.215f + whiskerFlex), stroke * 0.78f, StrokeCap.Round)
-                drawLine(BoingInk, Offset(w * 0.65f, h * 0.285f), Offset(w * 0.85f, h * 0.282f), stroke * 0.78f, StrokeCap.Round)
-                drawLine(BoingInk, Offset(w * 0.64f, h * 0.315f), Offset(w * 0.83f, h * 0.342f - whiskerFlex), stroke * 0.78f, StrokeCap.Round)
-
-                // Expressive Eyes (blink, wink for salute, double happy arcs for celebrate, look-up for think)
-                drawBoingEyes(
-                    gesture = gesture,
-                    blinkCycle = blinkCycle,
-                    phase = phase,
-                    w = w,
-                    h = h,
-                    unit = unit,
-                    stroke = stroke
-                )
-
-                // Glossy 3D Red Nose
-                val noseCenter = Offset(w * 0.50f, h * 0.228f)
-                val noseR = unit * 0.048f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(BoingRedLight, BoingRedDeep),
-                        center = Offset(noseCenter.x - noseR * 0.32f, noseCenter.y - noseR * 0.32f),
-                        radius = noseR * 1.4f
-                    ),
-                    radius = noseR,
-                    center = noseCenter
-                )
-                drawCircle(color = BoingInk, radius = noseR, center = noseCenter, style = Stroke(width = stroke))
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.92f),
-                    radius = noseR * 0.33f,
-                    center = Offset(noseCenter.x - noseR * 0.28f, noseCenter.y - noseR * 0.28f)
-                )
-            }
-
-            // 8. Red Collar with Highlight & 3D Swinging Golden Bell
-            val collarRect = Rect(w * 0.27f, h * 0.50f, w * 0.73f, h * 0.546f)
-            drawRoundRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(BoingRedLight, BoingRedDeep),
-                    startY = collarRect.top,
-                    endY = collarRect.bottom
-                ),
-                topLeft = collarRect.topLeft,
-                size = collarRect.size,
-                cornerRadius = CornerRadius(unit * 0.04f, unit * 0.04f)
-            )
-            drawRoundRect(
-                color = BoingInk,
-                topLeft = collarRect.topLeft,
-                size = collarRect.size,
-                cornerRadius = CornerRadius(unit * 0.04f, unit * 0.04f),
-                style = Stroke(width = stroke)
-            )
-
-            val bellCenter = Offset(w * 0.50f, h * 0.56f)
-            val bellR = unit * 0.068f
-            if (gesture == DoraemonGesture.ALERT || gesture == DoraemonGesture.CELEBRATE) {
-                drawCircle(
-                    color = BoingGoldMid.copy(alpha = 0.32f * (sparklePulse - 0.4f)),
-                    radius = bellR * 1.55f,
-                    center = bellCenter
-                )
-            }
-            rotate(degrees = bellSwing, pivot = Offset(bellCenter.x, h * 0.525f)) {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(BoingGoldLight, BoingGoldMid, BoingGoldDeep),
-                        center = Offset(bellCenter.x - bellR * 0.3f, bellCenter.y - bellR * 0.3f),
-                        radius = bellR * 1.4f
-                    ),
-                    radius = bellR,
-                    center = bellCenter
-                )
-                drawCircle(color = BoingInk, radius = bellR, center = bellCenter, style = Stroke(width = stroke))
-                drawLine(
-                    color = BoingInk,
-                    start = Offset(bellCenter.x - bellR * 0.86f, bellCenter.y - bellR * 0.14f),
-                    end = Offset(bellCenter.x + bellR * 0.86f, bellCenter.y - bellR * 0.14f),
-                    strokeWidth = stroke * 0.75f
-                )
-                drawCircle(
-                    color = BoingInk,
-                    radius = bellR * 0.22f,
-                    center = Offset(bellCenter.x, bellCenter.y + bellR * 0.28f)
-                )
-                drawLine(
-                    color = BoingInk,
-                    start = Offset(bellCenter.x, bellCenter.y + bellR * 0.3f),
-                    end = Offset(bellCenter.x, bellCenter.y + bellR * 0.84f),
-                    strokeWidth = stroke * 0.72f
-                )
             }
         }
     }
+}
+
+private fun DrawScope.drawCharacterFace(
+    w: Float, h: Float, stroke: Float, phase: Float, blinkCycle: Float,
+    thinking: Float, happy: Float, alert: Float, greeting: Float, blushAlpha: Float
+) {
+    val unit = w
+    val headCenter = Offset(w * 0.50f, h * 0.295f)
+    val headRx = w * 0.385f
+    val headRy = h * 0.26f
+
+    // Volumetric 3D blue head gradient
+    drawOval(
+        brush = Brush.radialGradient(
+            colors = listOf(BoingBlueLight, BoingBlueMid, BoingBlueDeep),
+            center = Offset(headCenter.x - headRx * 0.34f, headCenter.y - headRy * 0.38f),
+            radius = headRx * 1.65f
+        ),
+        topLeft = Offset(headCenter.x - headRx, headCenter.y - headRy),
+        size = Size(headRx * 2f, headRy * 2f)
+    )
+    // Glossy anime forehead highlight arc
+    drawArc(
+        color = Color.White.copy(alpha = 0.26f),
+        startAngle = 210f,
+        sweepAngle = 55f,
+        useCenter = false,
+        topLeft = Offset(headCenter.x - headRx * 0.86f, headCenter.y - headRy * 0.86f),
+        size = Size(headRx * 1.72f, headRy * 1.72f),
+        style = Stroke(width = unit * 0.025f, cap = StrokeCap.Round)
+    )
+    drawOval(
+        color = BoingInk,
+        topLeft = Offset(headCenter.x - headRx, headCenter.y - headRy),
+        size = Size(headRx * 2f, headRy * 2f),
+        style = Stroke(width = stroke)
+    )
+
+    // White Face Mask
+    val faceRx = headRx * 0.84f
+    val faceRy = headRy * 0.78f
+    val faceCenter = Offset(headCenter.x, headCenter.y + h * 0.044f)
+    drawOval(
+        brush = Brush.radialGradient(
+            colors = listOf(BoingWhiteTop, BoingWhiteTop, BoingWhiteShade),
+            center = Offset(faceCenter.x, faceCenter.y - faceRy * 0.2f),
+            radius = faceRx * 1.3f
+        ),
+        topLeft = Offset(faceCenter.x - faceRx, faceCenter.y - faceRy),
+        size = Size(faceRx * 2f, faceRy * 2f)
+    )
+    drawOval(
+        color = BoingInk,
+        topLeft = Offset(faceCenter.x - faceRx, faceCenter.y - faceRy),
+        size = Size(faceRx * 2f, faceRy * 2f),
+        style = Stroke(width = stroke)
+    )
+
+    // Soft Rosy Anime Cheek Blush
+    if (blushAlpha > 0.02f) {
+        drawOval(
+            color = BoingBlush.copy(alpha = blushAlpha),
+            topLeft = Offset(w * 0.23f, h * 0.29f),
+            size = Size(w * 0.11f, h * 0.045f)
+        )
+        drawOval(
+            color = BoingBlush.copy(alpha = blushAlpha),
+            topLeft = Offset(w * 0.66f, h * 0.29f),
+            size = Size(w * 0.11f, h * 0.045f)
+        )
+    }
+
+    // Expressive Mouth & Tongue
+    drawMouth(w, h, stroke, phase, thinking, happy, alert)
+
+    // Philtrum line
+    drawLine(
+        color = BoingInk,
+        start = Offset(w * 0.50f, h * 0.26f),
+        end = Offset(w * 0.50f, h * 0.33f),
+        strokeWidth = stroke * 0.85f
+    )
+
+    // Crisp anime whiskers (3 per side)
+    val whiskerFlex = sin(phase * 2f) * (h * 0.006f)
+    drawLine(BoingInk, Offset(w * 0.36f, h * 0.255f), Offset(w * 0.17f, h * 0.215f + whiskerFlex), stroke * 0.78f, StrokeCap.Round)
+    drawLine(BoingInk, Offset(w * 0.35f, h * 0.285f), Offset(w * 0.15f, h * 0.282f), stroke * 0.78f, StrokeCap.Round)
+    drawLine(BoingInk, Offset(w * 0.36f, h * 0.315f), Offset(w * 0.17f, h * 0.342f - whiskerFlex), stroke * 0.78f, StrokeCap.Round)
+
+    drawLine(BoingInk, Offset(w * 0.64f, h * 0.255f), Offset(w * 0.83f, h * 0.215f + whiskerFlex), stroke * 0.78f, StrokeCap.Round)
+    drawLine(BoingInk, Offset(w * 0.65f, h * 0.285f), Offset(w * 0.85f, h * 0.282f), stroke * 0.78f, StrokeCap.Round)
+    drawLine(BoingInk, Offset(w * 0.64f, h * 0.315f), Offset(w * 0.83f, h * 0.342f - whiskerFlex), stroke * 0.78f, StrokeCap.Round)
+
+    // Expressive Eyes (blink, wink for salute, double happy arcs for celebrate, look-up for think)
+    drawBoingEyes(
+        thinking = thinking, happy = happy, greeting = greeting,
+        blinkCycle = blinkCycle,
+        phase = phase,
+        w = w,
+        h = h,
+        unit = unit,
+        stroke = stroke
+    )
+
+    // Glossy 3D Red Nose
+    val noseCenter = Offset(w * 0.50f, h * 0.228f)
+    val noseR = unit * 0.048f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(BoingRedLight, BoingRedDeep),
+            center = Offset(noseCenter.x - noseR * 0.32f, noseCenter.y - noseR * 0.32f),
+            radius = noseR * 1.4f
+        ),
+        radius = noseR,
+        center = noseCenter
+    )
+    drawCircle(color = BoingInk, radius = noseR, center = noseCenter, style = Stroke(width = stroke))
+    drawCircle(
+        color = Color.White.copy(alpha = 0.92f),
+        radius = noseR * 0.33f,
+        center = Offset(noseCenter.x - noseR * 0.28f, noseCenter.y - noseR * 0.28f)
+    )
 }
 
 private fun DrawScope.drawBlueLimbCapsule(
@@ -692,170 +696,59 @@ private fun DrawScope.drawFourPointSparkle(
 }
 
 private fun DrawScope.drawBoingEyes(
-    gesture: DoraemonGesture,
-    blinkCycle: Float,
-    phase: Float,
-    w: Float,
-    h: Float,
-    unit: Float,
-    stroke: Float
+    thinking: Float, happy: Float, greeting: Float, blinkCycle: Float, phase: Float,
+    w: Float, h: Float, unit: Float, stroke: Float
 ) {
-    val leftEyeRect = Rect(w * 0.375f, h * 0.085f, w * 0.50f, h * 0.215f)
-    val rightEyeRect = Rect(w * 0.50f, h * 0.085f, w * 0.625f, h * 0.215f)
-
-    // Left eye outer white
-    drawOval(color = BoingWhiteTop, topLeft = leftEyeRect.topLeft, size = leftEyeRect.size)
-    drawOval(color = BoingInk, topLeft = leftEyeRect.topLeft, size = leftEyeRect.size, style = Stroke(width = stroke))
-
-    // Right eye outer white
-    drawOval(color = BoingWhiteTop, topLeft = rightEyeRect.topLeft, size = rightEyeRect.size)
-    drawOval(color = BoingInk, topLeft = rightEyeRect.topLeft, size = rightEyeRect.size, style = Stroke(width = stroke))
-
-    val isFullBlink = blinkCycle in 0.48f..0.52f
-    val leftHappyArc = gesture == DoraemonGesture.CELEBRATE || isFullBlink
-    val rightHappyArc = gesture == DoraemonGesture.CELEBRATE ||
-        gesture == DoraemonGesture.SALUTE ||
-        (gesture == DoraemonGesture.ADVISING && blinkCycle in 0.12f..0.44f) ||
-        isFullBlink
-
-    val lookX = when (gesture) {
-        DoraemonGesture.THINK -> unit * 0.012f
-        DoraemonGesture.SALUTE, DoraemonGesture.ADVISING -> sin(phase) * (unit * 0.006f)
-        else -> 0f
-    }
-    val lookY = when (gesture) {
-        DoraemonGesture.THINK -> -unit * 0.022f
-        else -> 0f
-    }
-
-    if (leftHappyArc) {
-        drawArc(
-            color = BoingInk,
-            startAngle = 195f,
-            sweepAngle = 150f,
-            useCenter = false,
-            topLeft = Offset(leftEyeRect.left + w * 0.02f, leftEyeRect.top + h * 0.052f),
-            size = Size(leftEyeRect.width - w * 0.04f, h * 0.042f),
-            style = Stroke(width = stroke * 1.15f, cap = StrokeCap.Round)
-        )
-    } else {
-        val pupil = Offset(leftEyeRect.center.x + w * 0.014f + lookX, leftEyeRect.center.y + lookY)
-        drawCircle(color = BoingInk, radius = unit * 0.024f, center = pupil)
-        drawCircle(
-            color = Color.White,
-            radius = unit * 0.009f,
-            center = Offset(pupil.x - unit * 0.006f, pupil.y - unit * 0.007f)
-        )
-    }
-
-    if (rightHappyArc) {
-        drawArc(
-            color = BoingInk,
-            startAngle = 195f,
-            sweepAngle = 150f,
-            useCenter = false,
-            topLeft = Offset(rightEyeRect.left + w * 0.02f, rightEyeRect.top + h * 0.052f),
-            size = Size(rightEyeRect.width - w * 0.04f, h * 0.042f),
-            style = Stroke(width = stroke * 1.15f, cap = StrokeCap.Round)
-        )
-    } else {
-        val pupil = Offset(rightEyeRect.center.x - w * 0.014f + lookX, rightEyeRect.center.y + lookY)
-        drawCircle(color = BoingInk, radius = unit * 0.024f, center = pupil)
-        drawCircle(
-            color = Color.White,
-            radius = unit * 0.009f,
-            center = Offset(pupil.x - unit * 0.006f, pupil.y - unit * 0.007f)
-        )
+    val blink = (1f - abs(blinkCycle - 0.72f) / 0.025f).coerceIn(0f, 1f)
+    val wink = greeting * (1f - abs(blinkCycle - 0.28f) / 0.055f).coerceIn(0f, 1f)
+    for (index in 0..1) {
+        val side = if (index == 0) -1f else 1f
+        val eye = Offset(w * (0.5f + side * 0.065f), h * 0.151f)
+        val radius = Size(w * 0.066f, h * 0.073f)
+        val top = Offset(eye.x - radius.width, eye.y - radius.height)
+        val bounds = Size(radius.width * 2, radius.height * 2)
+        drawOval(BoingWhiteTop, top, bounds)
+        drawOval(BoingInk, top, bounds, style = Stroke(stroke))
+        val closure = maxOf(happy, blink, if (side > 0f) wink else 0f)
+        val pupil = Offset(eye.x - side * w * 0.015f + w * (0.017f * thinking + 0.005f * sin(phase)),
+            eye.y + h * (0.015f - 0.036f * thinking))
+        scale(1f, maxOf(0.02f, 1f - closure), pivot = pupil) {
+            drawCircle(BoingInk.copy(alpha = 1f - closure), unit * 0.025f, pupil)
+            drawCircle(Color.White.copy(alpha = 1f - closure), unit * 0.008f, pupil - Offset(unit * 0.007f, unit * 0.008f))
+        }
+        if (closure > 0f) drawArc(BoingInk.copy(alpha = closure), 195f, 150f, false,
+            Offset(eye.x - w * 0.041f, eye.y), Size(w * 0.082f, h * 0.038f),
+            style = Stroke(stroke, cap = StrokeCap.Round))
     }
 }
 
-private fun DrawScope.drawBoingMouth(
-    gesture: DoraemonGesture,
-    phase: Float,
-    w: Float,
-    h: Float,
-    stroke: Float
-) {
-    when (gesture) {
-        DoraemonGesture.THINK -> {
-            // Cute small contemplative "o"
-            val c = Offset(w * 0.50f, h * 0.375f)
-            val r = minOf(w, h) * 0.032f
-            drawCircle(color = BoingRedDeep, radius = r, center = c)
-            drawCircle(color = BoingInk, radius = r, center = c, style = Stroke(width = stroke))
-        }
-        DoraemonGesture.ALERT -> {
-            val ovalTopLeft = Offset(w * 0.405f, h * 0.34f)
-            val ovalSize = Size(w * 0.19f, h * 0.11f)
-            drawOval(color = BoingMouthDark, topLeft = ovalTopLeft, size = ovalSize)
-            drawOval(
-                brush = Brush.verticalGradient(listOf(BoingTongueLight, BoingTongueDeep)),
-                topLeft = Offset(w * 0.44f, h * 0.395f),
-                size = Size(w * 0.12f, h * 0.05f)
-            )
-            drawOval(color = BoingInk, topLeft = ovalTopLeft, size = ovalSize, style = Stroke(width = stroke))
-        }
-        DoraemonGesture.SALUTE,
-        DoraemonGesture.CELEBRATE,
-        DoraemonGesture.ADVISING -> {
-            val amp = if (gesture == DoraemonGesture.CELEBRATE) 0.020f else 0.012f
-            val talkDrop = (sin(phase * 3f) * 0.5f + 0.5f) * (h * amp)
-            val smilePath = Path().apply {
-                moveTo(w * 0.30f, h * 0.33f)
-                quadraticTo(w * 0.50f, h * 0.355f, w * 0.70f, h * 0.31f)
-                cubicTo(
-                    w * 0.72f, h * (0.455f + talkDrop / h),
-                    w * 0.58f, h * (0.495f + talkDrop / h),
-                    w * 0.50f, h * (0.49f + talkDrop / h)
-                )
-                cubicTo(
-                    w * 0.40f, h * (0.485f + talkDrop / h),
-                    w * 0.29f, h * 0.415f,
-                    w * 0.30f, h * 0.33f
-                )
-                close()
-            }
-            drawPath(
-                smilePath,
-                brush = Brush.verticalGradient(
-                    colors = listOf(BoingMouthDark, BoingRedDeep),
-                    startY = h * 0.32f,
-                    endY = h * 0.50f
-                )
-            )
-            drawOval(
-                brush = Brush.verticalGradient(listOf(BoingTongueLight, BoingTongueDeep)),
-                topLeft = Offset(w * 0.385f, h * (0.395f + talkDrop * 0.35f / h)),
-                size = Size(w * 0.23f, h * 0.082f)
-            )
-            drawOval(
-                color = BoingInk,
-                topLeft = Offset(w * 0.385f, h * (0.395f + talkDrop * 0.35f / h)),
-                size = Size(w * 0.23f, h * 0.082f),
-                style = Stroke(width = stroke * 0.78f)
-            )
-            drawPath(smilePath, color = BoingInk, style = Stroke(width = stroke, join = StrokeJoin.Round))
-        }
+private fun DrawScope.drawMouth(w: Float, h: Float, stroke: Float, phase: Float, thinking: Float, happy: Float, alert: Float) {
+    val cx = w * (0.5f + 0.025f * thinking)
+    val half = w * (0.18f - 0.14f * thinking - 0.095f * alert + 0.018f * happy)
+    val lip = h * (0.327f + 0.024f * thinking)
+    val depth = h * (0.119f - 0.102f * thinking - 0.009f * alert + 0.025f * happy +
+        0.006f * sin(phase * 2f) * (1f - thinking))
+    val mouth = Path().apply {
+        moveTo(cx - half, lip)
+        quadraticTo(cx, lip + h * (0.039f - 0.064f * alert), cx + half, lip)
+        cubicTo(cx + half * 0.86f, lip + depth * 1.3f, cx - half * 0.86f, lip + depth * 1.3f, cx - half, lip)
+        close()
     }
+    drawPath(mouth, BoingMouthDark)
+    clipPath(mouth) {
+        drawOval(BoingTongueLight, Offset(cx - half * 0.72f, lip + depth * 0.56f), Size(half * 1.48f, depth * 0.63f))
+    }
+    drawPath(mouth, BoingInk, style = Stroke(stroke, join = StrokeJoin.Round))
 }
 
 @Composable
-fun DoraemonMiniHeadIcon(
-    active: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val mascot = androidx.compose.ui.graphics.ImageBitmap.imageResource(com.example.R.drawable.img_doraemon_mascot)
-    Canvas(modifier = modifier) {
-        // Frame the face from the same illustration shown in the assistant.
-        val x = (mascot.width * 0.14f).toInt()
-        val width = mascot.width - x
-        val height = (mascot.height * 0.62f).toInt()
-        drawImage(
-            image = mascot,
-            srcOffset = androidx.compose.ui.unit.IntOffset(x, 0),
-            srcSize = androidx.compose.ui.unit.IntSize(width, height),
-            dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
-            alpha = if (active) 1f else 0.65f
-        )
+fun DoraemonMiniHeadIcon(active: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier.alpha(if (active) 1f else 0.65f)) {
+        // Chat history uses a still portrait from the same character, without starting a frame clock per row.
+        val w = size.minDimension / 0.81f
+        val h = w / 0.84f
+        withTransform({ translate(size.width * 0.5f - w * 0.5f, size.height * 0.5f - h * 0.295f) }) {
+            drawCharacterFace(w, h, w * 0.017f, 0f, 0f, 0f, 0f, 0f, 0f, 0.18f)
+        }
     }
 }
