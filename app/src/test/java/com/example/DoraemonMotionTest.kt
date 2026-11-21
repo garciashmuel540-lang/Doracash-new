@@ -1,14 +1,15 @@
 package com.example
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
@@ -32,11 +33,20 @@ class DoraemonMotionTest {
     @Test fun gesturesAnimateAndChangeTheRenderedCharacter() {
         val pose = mutableStateOf(DoraemonGesture.SALUTE)
         compose.mainClock.autoAdvance = false
+        lateinit var host: View
         compose.setContent {
+            host = LocalView.current
             DoraemonAnimatedMascot(pose.value, Modifier.size(180.dp).background(Color(0xFF0C1728)).testTag("mascot"))
         }
         val node = compose.onNodeWithTag("mascot")
-        fun frame() = node.captureToImage().asAndroidBitmap()
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        fun frame(): Bitmap = compose.runOnIdle {
+            val result = Bitmap.createBitmap(bounds.width.toInt(), bounds.height.toInt(), Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(result)
+            canvas.translate(-bounds.left, -bounds.top)
+            host.draw(canvas)
+            result
+        }
         val preview = System.getenv("DORACASH_MOTION_FRAMES")?.let { File(it).apply { mkdirs() } }
         var index = 0
         var previousPose: Bitmap? = null
