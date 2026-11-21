@@ -28,10 +28,18 @@ jobs:
           DORACASH_MOTION_FRAMES: ${{ runner.temp }}/doracash-frames
         run: |
           keytool -genkeypair -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Doracash CI"
-          gradle assembleDebug testDebugUnitTest
+          gradle --no-build-cache assembleDebug testDebugUnitTest
       - name: Mostrar la animación capturada en Android
         run: |
-          convert -delay 6 -loop 0 "$RUNNER_TEMP"/doracash-frames/frame-*.png -layers Optimize Doraemon.gif
+          python3 -m pip install --quiet --target "$RUNNER_TEMP/preview-tools" Pillow==12.0.0
+          PYTHONPATH="$RUNNER_TEMP/preview-tools" python3 - <<'PYTHON'
+          from pathlib import Path
+          from PIL import Image
+          import os
+          paths = sorted((Path(os.environ["RUNNER_TEMP"]) / "doracash-frames").glob("frame-*.png"))
+          frames = [Image.open(path).convert("RGB") for path in paths]
+          frames[0].save("Doraemon.gif", save_all=True, append_images=frames[1:], duration=64, loop=0)
+          PYTHON
       - uses: actions/upload-artifact@v4
         with:
           name: Doraemon-en-movimiento
