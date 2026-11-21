@@ -4,6 +4,9 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ai.localChatReply
+import com.example.ai.isAppCheckRejection
+import com.example.ai.ChatVerificationException
 import com.example.ai.DoraemonAction
 import com.example.ai.DoraemonActionType
 import com.example.ai.DoraemonAssistant
@@ -216,17 +219,9 @@ class DoracashViewModel(
             isUser = true,
             text = trimmed
         )
-        if (trimmed.trim('¿', '?').equals("Cómo van mis finanzas", ignoreCase = true)) {
-            val currency = CurrencyCode.safeValueOf(snapshot.profile.displayCurrency)
-            val rate = snapshot.profile.exchangeRate
-            val balance = snapshot.accounts.sumOf { FinanceUtils.convertCurrency(it.balance, it.currencyCode, currency, rate) }
-            val month = FinanceUtils.currentYearMonth()
-            fun monthly(type: TxType) = snapshot.transactions.filter { it.typeEnum == type && it.dateIso.startsWith(month) }
-                .sumOf { FinanceUtils.convertCurrency(it.amount, it.currencyCode, currency, rate) }
-            val reply = "Saldo en tus cuentas: ${FinanceUtils.formatMoney(balance, currency)}. " +
-                "Este mes ingresaron ${FinanceUtils.formatMoney(monthly(TxType.INCOME), currency)} y gastaste ${FinanceUtils.formatMoney(monthly(TxType.EXPENSE), currency)}. " +
-                "Movimientos pendientes: ${snapshot.pending.size}."
-            _doraemonMessages.value = _doraemonMessages.value + userMsg + DoraemonChatMessage(id = UUID.randomUUID().toString(), isUser = false, text = reply)
+        val localReply = localChatReply(trimmed, snapshot)
+        if (localReply != null) {
+            _doraemonMessages.value = _doraemonMessages.value + userMsg + localReply
             _doraemonChatState.value = DoraemonChatUiState.Idle
             return
         }
@@ -261,8 +256,8 @@ class DoracashViewModel(
             } catch (e: Exception) {
                 Log.e(TAG, "Doraemon chat failed", e)
                 _doraemonChatState.value = DoraemonChatUiState.Error(
-                    if (generateSequence<Throwable>(e) { it.cause }.any { it.message.orEmpty().contains("app check", true) || it.message.orEmpty().contains("appcheck", true) })
-                        "Firebase no pudo verificar esta instalación. Comprobá tu conexión y que tengas la última versión de Doracash."
+                    if (e is ChatVerificationException || isAppCheckRejection(e))
+                        "La IA en línea no consiguió verificar esta sesión. Podés consultarme tu saldo o tus próximos pagos e intentar la pregunta de nuevo más tarde."
                     else e.localizedMessage ?: "No se pudo consultar a Doraemon."
                 )
             }

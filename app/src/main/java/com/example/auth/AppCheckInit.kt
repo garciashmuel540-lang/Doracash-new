@@ -15,6 +15,9 @@ private const val DEBUG_TOKEN_EXTRA = "FIREBASE_APPCHECK_DEBUG_TOKEN"
 private const val DEBUG_STORE_PREFIX = "com.google.firebase.appcheck.debug.store."
 private const val DEBUG_SECRET_KEY = "com.google.firebase.appcheck.debug.DEBUG_SECRET"
 
+private var providerInstalled = false
+
+@Synchronized
 fun configureAppCheck(context: Context, intent: Intent?) {
     try {
         if (FirebaseApp.getApps(context).isEmpty()) {
@@ -24,6 +27,7 @@ fun configureAppCheck(context: Context, intent: Intent?) {
         // AI Studio can explicitly opt into its registered debug token. APKs shared
         // between phones always use the Android provider configured for this app.
         val debugToken = if (BuildConfig.DEBUG) intent?.getStringExtra(DEBUG_TOKEN_EXTRA) else null
+        if (providerInstalled && debugToken.isNullOrBlank()) return
         if (!debugToken.isNullOrBlank()) {
             val persistenceKey = FirebaseApp.getInstance().persistenceKey
             val prefs = context.getSharedPreferences(
@@ -45,6 +49,7 @@ fun configureAppCheck(context: Context, intent: Intent?) {
                 RecaptchaAppCheckProviderFactory.getInstance(siteKey), true
             )
         }
+        providerInstalled = true
     } catch (e: Exception) {
         Log.e(TAG, "Failed to initialize Firebase App Check", e)
     }

@@ -8,6 +8,8 @@ import com.example.data.DoracashSnapshot
 import com.example.data.FinanceUtils
 import com.example.data.TxType
 import com.example.ui.components.DoraemonGesture
+import com.google.firebase.appcheck.FirebaseAppCheck
+import kotlinx.coroutines.tasks.await
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.Content
@@ -120,6 +122,12 @@ sealed interface DoraemonChatUiState {
 }
 
 class DoraemonAssistant {
+
+    private suspend fun <T> verifiedRequest(request: suspend () -> T): T = withTimeout(TIMEOUT_MS) {
+        withVerifiedAppCheck({ force ->
+            FirebaseAppCheck.getInstance().getAppCheckToken(force).await()
+        }, request)
+    }
 
     private val actionSchema = Schema.obj(
         properties = mapOf(
@@ -287,7 +295,7 @@ class DoraemonAssistant {
     suspend fun evaluateImportantNotice(snapshot: DoracashSnapshot): DoraemonImportantNotice =
         withContext(Dispatchers.IO) {
             val contextText = buildCompactHealthSummary(snapshot)
-            val response = withTimeout(TIMEOUT_MS) {
+            val response = verifiedRequest {
                 importantNoticeModel.generateContent(
                     "Evalúa si hay algún aviso importante ahora:\n$contextText"
                 )
@@ -343,7 +351,7 @@ class DoraemonAssistant {
             }
         )
 
-        val response = withTimeout(TIMEOUT_MS) {
+        val response = verifiedRequest {
             chatAgentModel.generateContent(chatContents)
         }
         val raw = response.text ?: throw IllegalStateException("Doraemon no devolvió respuesta.")
